@@ -1,0 +1,19 @@
+{
+  "name": "@arena/swarm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@arena/shared": "workspace:*"
+  },
+  "scripts": {
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "tsx": "^4"
+  }
+}
