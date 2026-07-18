@@ -108,3 +108,58 @@ test("think launch consumes the shared per-tick budget and degrades to ruleThink
   // actually allowed to use the "model" thinker; the rest degraded to rules.
   assert.ok(modelCalls <= 1, `expected at most 1 model call, got ${modelCalls}`);
 });
+
+test("phase pacing thinks more slowly early and more quickly late", async () => {
+  const before = {
+    flags: { ...tunables.flags },
+    swarm: { ...tunables.swarm },
+    seed: tunables.seed,
+  };
+  applyTunables({
+    flags: { ...tunables.flags, phasePacing: true },
+    swarm: {
+      ...tunables.swarm,
+      thinkEarlyScale: 2,
+      thinkLateScale: 0.5,
+    },
+    seed: 123,
+  });
+
+  const phasedWorld = (phase: "early" | "late"): WorldView => ({
+    livingAgents: () => [{ id: "paced", name: "paced", klass: "charmer" }],
+    agentContext: () => ({
+      ...ctx("paced"),
+      world: {
+        livingCount: 4,
+        startingCount: 4,
+        runElapsedMs: phase === "early" ? 1_000 : 600_000,
+        phase,
+        posture: "none",
+        eventKind: null,
+        secondsUntilEvent: null,
+        recent: [],
+      },
+    }),
+    conversationState: () => null,
+  });
+
+  const early = makeSink();
+  const late = makeSink();
+  const earlyScheduler = createSwarmScheduler({ world: phasedWorld("early"), sink: early.sink });
+  const lateScheduler = createSwarmScheduler({ world: phasedWorld("late"), sink: late.sink });
+  const t0 = Date.now();
+  earlyScheduler.tick(t0);
+  lateScheduler.tick(t0);
+
+  const firstDraw = mulberry32(combineSeed(123, "paced"))();
+  const baseThinkMaxMs = 30_000; // scheduler's documented base upper bound
+  const lateDue = Math.floor(firstDraw * baseThinkMaxMs * 0.5) + 1;
+  earlyScheduler.tick(t0 + lateDue);
+  lateScheduler.tick(t0 + lateDue);
+  await new Promise((r) => setTimeout(r, 10));
+
+  assert.equal(early.applied.length, 0, "the opening cadence should still be waiting");
+  assert.equal(late.applied.length, 1, "the late cadence should already have acted");
+
+  applyTunables(before);
+});

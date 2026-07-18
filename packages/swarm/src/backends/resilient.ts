@@ -35,6 +35,8 @@ export function createResilientBackend(opts: ResilientOptions): ModelBackend {
   let consecutiveFailures = 0;
   let openedAt = 0;
   let usingFallback = false;
+  let primaryInFlight = 0;
+  const maxPrimaryConcurrency = Math.max(1, primary.maxConcurrency ?? Number.POSITIVE_INFINITY);
 
   const announce = (state: "primary" | "fallback", reason: string) => {
     if (usingFallback === (state === "fallback")) return;
@@ -69,13 +71,20 @@ export function createResilientBackend(opts: ResilientOptions): ModelBackend {
     viaPrimary: () => Promise<LLMResult<T>>,
     viaRules: () => Promise<LLMResult<T>>,
   ): Promise<LLMResult<T>> {
-    if (mayTryPrimary()) {
+    // Do not queue behind a saturated local model. The rule path is a complete
+    // answer, so overflow can resolve immediately and interactions keep moving
+    // while the one admitted model call finishes. Saturation is not a health
+    // failure and therefore must not trip the circuit breaker.
+    if (mayTryPrimary() && primaryInFlight < maxPrimaryConcurrency) {
+      primaryInFlight += 1;
       try {
         const r = await viaPrimary();
         recordSuccess();
         return r;
       } catch (err) {
         recordFailure(err);
+      } finally {
+        primaryInFlight -= 1;
       }
     }
     return viaRules();

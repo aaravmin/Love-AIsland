@@ -27,6 +27,10 @@ export type SpectatorJoinPayload = {
   clientId: string;
   name: string;
   phone: string;
+  // Set during sign-in so joining and saving the notification preference are
+  // one round trip. Omitted by recovery/re-registration flows to preserve the
+  // spectator's current preference.
+  notify?: boolean;
 };
 
 export type SpectatorJoinAck = {
@@ -170,13 +174,16 @@ export type RoomInfo = RoomMeta & {
 export type RoomCreatePayload = { clientId: string; name: string; config: RoomConfig };
 export type RoomJoinPayload = { clientId: string; code: string };
 export type RoomStartPayload = { clientId: string };
+// Room enumeration is operator-only. Without a valid key the server returns
+// only the room the requesting socket is already in.
+export type RoomListPayload = { key?: string };
 // Toggle SMS portfolio updates for this person (default off).
 export type NotifPrefPayload = { clientId: string; on: boolean };
 
 export type RoomEnterAck =
   | { ok: true; snapshot: Snapshot; spectator: PrivateSpectator | null }
   | { ok: false; error: string };
-export type RoomListAck = { rooms: RoomInfo[] };
+export type RoomListAck = { rooms: RoomInfo[]; isAdmin: boolean };
 
 export type Snapshot = {
   phase: "lobby" | "running" | "settled";
@@ -396,7 +403,7 @@ export type ClientToServerEvents = {
   "room:create": (payload: RoomCreatePayload, ack: (a: RoomEnterAck) => void) => void;
   "room:join": (payload: RoomJoinPayload, ack: (a: RoomEnterAck) => void) => void;
   "room:start": (payload: RoomStartPayload, ack: (a: { ok: boolean }) => void) => void;
-  "room:list": (ack: (a: RoomListAck) => void) => void;
+  "room:list": (payload: RoomListPayload, ack: (a: RoomListAck) => void) => void;
   "notif:setPref": (payload: NotifPrefPayload, ack: (a: { ok: boolean; notify: boolean }) => void) => void;
 };
 

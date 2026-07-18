@@ -1,6 +1,6 @@
 # Love AIsland - Data Models
 
-Status: Phase 0 deliverable, awaiting team approval.
+Status: Phase 0 deliverable, awaiting Aarav's approval.
 These are the final shapes for `packages/shared/src/types.ts`.
 Every field added or changed relative to the brief in MVP_BUILD_PLAN.md is flagged with a comment and justified.
 

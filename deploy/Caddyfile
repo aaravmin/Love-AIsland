@@ -1,0 +1,15 @@
+# Caddy reverse proxy for the sim server (ARCHITECTURE.md section 8).
+#
+# No domain was purchased for the MVP: sslip.io is a free wildcard DNS service
+# where <dashed-ip>.sslip.io resolves to that IP, so Caddy can still obtain a
+# real Let's Encrypt certificate (the Vercel HTTPS pages require wss://, which
+# needs a valid cert, which needs a hostname rather than a bare IP).
+#
+# For the current droplet (public IP 67.207.82.96):
+67-207-82-96.sslip.io {
+	reverse_proxy localhost:4000
+}
+# When a real domain is bought, replace the block above with:
+#   arena.<domain> { reverse_proxy localhost:4000 }
+# point an A record at the droplet, and set Vercel's
+# NEXT_PUBLIC_SOCKET_URL=wss://arena.<domain>.

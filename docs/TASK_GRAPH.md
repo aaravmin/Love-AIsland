@@ -1,12 +1,12 @@
 # Love AIsland - Task Graph
 
 Status: Phases 1 and 2 approved. Phase 3 complete, including deployment.
-Tasks 3.1-3.4 and 3.6 built and verified locally; task 3.5 deployed and verified cross-origin (see deploy/README.md).
+Tasks 3.1-3.4 and 3.6 built and verified locally; task 3.5 deployed and verified cross-origin: web on Vercel (practice-arena-web.vercel.app), sim server on a DigitalOcean droplet behind Caddy at wss://67-207-82-96.sslip.io (see deploy/README.md).
 The deployed URL passes the gate (create flow + many sprites moving); gate evidence in docs/screenshots/phase3/.
 
 Module tags: **FE** = `apps/web`, **SV** = `apps/server`, **SW** = `packages/swarm`, **SH** = `packages/shared`.
 Tier tags map to the model/effort table in MVP_BUILD_PLAN.md (A = max reasoning, B = strong coding, C = efficient coding, D = cheap glue).
-Every phase ends at the brief's screenshot gate: Playwright screenshots at a desktop width and a ~390 px mobile width, shown to the team for sign-off before the next phase starts.
+Every phase ends at the brief's screenshot gate: Playwright screenshots at a desktop width and a ~390 px mobile width, shown to Aarav for sign-off before the next phase starts.
 
 ## Phase 1 - Skeleton and island
 
@@ -173,7 +173,7 @@ Phase 8 (and the 8-phase MVP) complete. The whole loop is live: create -> swarm 
 
 Critical path: 1.1 → 1.2 → 3.1 → 3.2 → 4.0 → (4.x swarm chain) → 5.2 → 6.2 → 7.1 → 8.1.
 
-The four-person split follows the four module boundaries.
+The three-person split falls out naturally.
 The FE dev runs 1.3 through 2.3 while the SV dev does 3.x and the SW dev drafts 4.1 and 4.4.
 After 4.0 freezes the contract, all three lanes are independent until the 8.6 rehearsal.
 

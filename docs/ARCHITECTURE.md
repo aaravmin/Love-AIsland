@@ -2,7 +2,7 @@
 
 (The product was renamed from "Reality Island" to "Love AIsland" at the Phase 1 gate; internal package names keep the neutral `@arena/*` scope.)
 
-Status: Phase 0 deliverable, awaiting team approval.
+Status: Phase 0 deliverable, awaiting Aarav's approval.
 Companion docs: [DATA_MODELS.md](./DATA_MODELS.md) and [TASK_GRAPH.md](./TASK_GRAPH.md).
 
 ## 0. Locked decisions
@@ -29,11 +29,11 @@ These override the brief's defaults where they differ.
 ## 1. Monorepo layout and tooling
 
 Tooling: pnpm workspaces, plain TypeScript project references, no Turborepo.
-Four devs and four packages with one non-Next build target do not justify Turbo's config surface.
+Three devs and four packages with one non-Next build target do not justify Turbo's config surface.
 A `concurrently` script (`pnpm dev`) runs Next plus the server under `tsx watch`.
 
 ```
-connector/
+practice-arena/
 ├── package.json                 # workspace root, dev scripts
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json           # strict, shared compilerOptions; each package extends
@@ -74,7 +74,7 @@ connector/
 
 `shared` and `swarm` are consumed as source via the workspace protocol with `exports` pointing at `src/`.
 Next uses `transpilePackages: ["@arena/shared"]`; the server runs via `tsx` in dev and bundles with `tsup` for deploy.
-No intermediate build step exists for four people iterating in parallel, and TS project references keep cross-package type errors visible.
+No intermediate build step exists for three people iterating in parallel, and TS project references keep cross-package type errors visible.
 
 ## 2. Module boundaries (the parallel-work contract)
 
@@ -423,7 +423,7 @@ Identity: no auth.
 The client generates a UUID `clientId` in localStorage; the server maps it to a Spectator and uses it for reconnect.
 Email is collected for prize contact and never leaves the server; `ownerName` is the public field.
 
-## 9. UI style directive (applies to all FE work)
+## 9. UI style directive (from Aarav, applies to all FE work)
 
 Keep shading simple: flat fills and solid colors; no gradients, glassmorphism, heavy drop shadows, glows, or layered elevation effects.
 Within that flatness, the palette and typography should be VIBRANT and Love-Island-flavored: hot pink primary, coral/orange and purple accents, a chunky rounded display font for the wordmark and headings.

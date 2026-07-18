@@ -5,11 +5,11 @@ Everything an operator does goes through the admin console; nothing here needs a
 
 ## Surfaces
 
-- Spectate / play: `https://web.example.com/`
+- Spectate / play: `https://practice-arena-web.vercel.app/`
 - Swarm architecture (for a second display): `/demo`
 - Printable QR flyer: `/flyer`
 - Operator console: `/admin`
-- Sim server health: `https://server.example.com/healthz`
+- Sim server health: `https://67-207-82-96.sslip.io/healthz`
 
 ## Operator console (`/admin`)
 
@@ -42,6 +42,6 @@ The key is checked server-side on every command.
 
 ## If something looks wrong
 
-- Server shows **Down**: check `https://server.example.com/healthz` returns 200; the server auto-restarts under pm2.
+- Server shows **Down**: check `https://67-207-82-96.sslip.io/healthz` returns 200; the server auto-restarts under pm2.
 - Viewers stuck: a **Reset** forces every client to re-sync from a fresh snapshot.
 - Spend near the cap: the swarm falls back to the rule engine on its own at $10; the game keeps running, just without live LLM reasoning.

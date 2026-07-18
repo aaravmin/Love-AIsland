@@ -8,8 +8,9 @@ import { sharedCallBudget, type CallBudget } from "./budget.js";
 // living agents and launches a think for each under a concurrency semaphore
 // (cap 8, ARCHITECTURE.md 7.1). Each decision is applied via DecisionSink the
 // instant it resolves -- no batching, so one slow LLM call never stalls the
-// others. First think is staggered; subsequent ones re-jitter 15-30 s after
-// completion (30-45 s while the spend soft-throttle is on).
+// others. First think is staggered; subsequent ones re-jitter around the base
+// 15-30 s cadence after completion (30-45 s while the spend soft-throttle is
+// on). Phase pacing stretches that cadence early and tightens it late.
 //
 // WS-M adds three things on top of that, all additive:
 //   - every per-agent rand stream is now derived from the run seed
@@ -132,11 +133,25 @@ export function createSwarmScheduler(opts: SwarmSchedulerOptions): SwarmSchedule
   // for the same agent, and cap total concurrency.
   const inFlight = new Set<string>();
 
-  function ensureRegistered(id: string, now: number): void {
+  function phaseScale(ctx: AgentContextView | null): number {
+    if (!tunables.flags.phasePacing) return 1;
+    switch (ctx?.world?.phase) {
+      case "mid":
+        return Math.max(0, tunables.swarm.thinkMidScale);
+      case "late":
+        return Math.max(0, tunables.swarm.thinkLateScale);
+      case "endgame":
+        return Math.max(0, tunables.swarm.thinkEndgameScale);
+      default:
+        return Math.max(0, tunables.swarm.thinkEarlyScale);
+    }
+  }
+
+  function ensureRegistered(id: string, now: number, ctx: AgentContextView | null): void {
     if (nextThinkAt.has(id)) return;
     const seed = combineSeed(tunables.seed, id);
     rngState.set(id, seed);
-    nextThinkAt.set(id, now + Math.floor(mulberry32(seed)() * THINK_MAX_MS));
+    nextThinkAt.set(id, now + Math.floor(mulberry32(seed)() * THINK_MAX_MS * phaseScale(ctx)));
   }
 
   function forget(id: string): void {
@@ -145,9 +160,12 @@ export function createSwarmScheduler(opts: SwarmSchedulerOptions): SwarmSchedule
     inFlight.delete(id);
   }
 
-  function jitter(rand: () => number): number {
+  function jitter(rand: () => number, ctx: AgentContextView): number {
     const [lo, hi] = throttled() ? [THROTTLE_MIN_MS, THROTTLE_MAX_MS] : [THINK_MIN_MS, THINK_MAX_MS];
-    return lo + Math.floor(rand() * (hi - lo));
+    // Spend throttling is a protective minimum and must not be cancelled by a
+    // fast late-game scale. Normal cadence follows the phase.
+    const scale = throttled() ? 1 : phaseScale(ctx);
+    return Math.floor((lo + rand() * (hi - lo)) * scale);
   }
 
   function applyResult(agentId: string, result: ThinkResult): void {
@@ -166,9 +184,9 @@ export function createSwarmScheduler(opts: SwarmSchedulerOptions): SwarmSchedule
     });
   }
 
-  function release(agentId: string, rand: () => number): void {
+  function release(agentId: string, rand: () => number, ctx: AgentContextView): void {
     inFlight.delete(agentId);
-    nextThinkAt.set(agentId, Date.now() + jitter(rand));
+    nextThinkAt.set(agentId, Date.now() + jitter(rand, ctx));
   }
 
   function tick(now: number): void {
@@ -187,7 +205,11 @@ export function createSwarmScheduler(opts: SwarmSchedulerOptions): SwarmSchedule
     // afterward, which is byte-for-byte the loop this replaced.
     const due: { agent: AgentBrief; ctx: AgentContextView }[] = [];
     for (const agent of agents) {
-      ensureRegistered(agent.id, now);
+      // Context reads are side-effect free. New agents need one here so their
+      // very first stagger observes the current run phase; existing agents do
+      // not pay for an extra read until they are actually due.
+      const registrationCtx = nextThinkAt.has(agent.id) ? null : world.agentContext(agent.id);
+      ensureRegistered(agent.id, now, registrationCtx);
       if (inFlight.size >= CONCURRENCY) break; // semaphore full this round
       if (inFlight.has(agent.id)) continue;
       if (now < nextThinkAt.get(agent.id)!) continue;
@@ -234,7 +256,7 @@ export function createSwarmScheduler(opts: SwarmSchedulerOptions): SwarmSchedule
           // internally; this guard only covers a caller that did not.
         })
         .finally(() => {
-          due.forEach(({ agent }, i) => release(agent.id, rands[i]!));
+          due.forEach(({ agent, ctx }, i) => release(agent.id, rands[i]!, ctx));
         });
       return;
     }
@@ -256,7 +278,7 @@ export function createSwarmScheduler(opts: SwarmSchedulerOptions): SwarmSchedule
         .catch(() => {
           // Thinker guarantees a fallback internally, but guard anyway.
         })
-        .finally(() => release(agent.id, rand));
+        .finally(() => release(agent.id, rand, ctx));
     }
   }
 

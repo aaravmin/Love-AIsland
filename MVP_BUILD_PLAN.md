@@ -10,15 +10,15 @@ Theme is Love Island meets Survivor meets Big Brother. Not fantasy RPG. Classes 
 
 You are being driven by Fable for planning and design. Follow this operating model exactly.
 
-1. **Plan and design first. Do not write feature code yet.** Read this whole document. Then ask the team the questions in the Open Questions section below. Wait for answers. Produce an architecture doc, the data models, and a task graph. Get team approval before any implementation.
+1. **Plan and design first. Do not write feature code yet.** Read this whole document. Then ask Aarav the questions in the Open Questions section below. Wait for answers. Produce an architecture doc, the data models, and a task graph. Get Aarav to approve the plan before any implementation.
 
 2. **Spawn sub-agents at the right tier.** After the plan is approved, break work into tasks and assign each task to a sub-agent at an effort and model tier matched to its difficulty and token cost. Use the tier table below. Do not run everything on the top model. Reserve the top tier for reasoning-heavy work. Push boilerplate to cheap models.
 
 3. **Build phase by phase.** Follow the phase order in the Build Phases section. Each phase produces something visible and runnable.
 
-4. **Screenshot and sign-off at every gate.** After each phase, run the app, capture screenshots of the new feature (use a headless browser like Playwright to load the running app and screenshot the relevant screens, both a desktop width and a mobile width around 390px). Show the team the screenshots. State what was built. Wait for approval or changes before moving to the next phase. Do not skip a gate.
+4. **Screenshot and sign-off at every gate.** After each phase, run the app, capture screenshots of the new feature (use a headless browser like Playwright to load the running app and screenshot the relevant screens, both a desktop width and a mobile width around 390px). Show Aarav the screenshots. State what was built. Wait for approval or changes before moving to the next phase. Do not skip a gate.
 
-5. **Keep the repo splittable.** Four people are working across this. Keep the frontend, the sim server, the agent swarm, and the shared types package as clean separate modules so people do not collide.
+5. **Keep the repo splittable.** Three people are working across this. Keep the frontend, the sim server, and the agent swarm as clean separate modules with a shared types package so people do not collide.
 
 ### Model and effort tiers
 
@@ -33,7 +33,7 @@ Separate point. The agents inside the running game are not a build concern. At r
 
 ## Open questions to ask before coding
 
-Ask the team these before you write feature code. The spec below picks a sensible default for each. Confirm or change.
+Ask Aarav these before you write feature code. The spec below picks a sensible default for each. Confirm or change.
 
 1. Agent count for the demo. Default is 50, with the system able to run fewer if fewer people join.
 2. Starting tokens per spectator. Default is 50.
@@ -255,9 +255,9 @@ Two steps. Onboarding then creation.
 
 - Default combat is HP based. Each contestant has HP derived from grit. A fight is a few damage exchanges. Whoever hits zero dies.
 - Hit chance and damage scale with strength and instinct, with randomness so upsets happen. Upsets are what keep the betting interesting.
-- HP regenerates slowly when not fighting. So a contestant who just won a fight is weak for a moment. Fighting while surrounded is risky because another agent can finish you. This is the intended dynamic, and it comes for free from HP plus regen plus notoriety.
+- HP regenerates slowly when not fighting. So a contestant who just won a fight is weak for a moment. Fighting while surrounded is risky because another agent can finish you. This is the dynamic Aarav wanted, and it comes for free from HP plus regen plus notoriety.
 - On death, play a simple death animation, flip alive to false, remove the sprite tag, credit the killer with a kill, and raise the killer notoriety.
-- If the team picks the simpler model instead, a fight resolves in one exchange and the loser dies immediately, with win probability from a combined power score. Keep the interface the same so you can swap models.
+- If Aarav picks the simpler model instead, a fight resolves in one exchange and the loser dies immediately, with win probability from a combined power score. Keep the interface the same so you can swap models.
 
 ### 9. Prediction market (LMSR, Polymarket-style)
 
@@ -292,7 +292,7 @@ Buying Yes pushes priceYes up, so the next buyer pays more. Buying No pushes pri
 
 - **Settlement.** When one contestant is left, settle every market. For the winning contestant, each Yes share redeems for 1 token and each No share redeems for 0. For every eliminated contestant, each No share redeems for 1 token and each Yes share redeems for 0. Credit redemptions to each spectator balance.
 
-- **Why payout depends on price.** You pay the price at the moment you buy. Buy Yes cheap early and you profit big if they win. Buy Yes when the price is already high and your upside is small. Buy No on a favorite when everyone thinks they will win, which is cheap No, and you profit a lot if they get eliminated. This is the intended mechanic.
+- **Why payout depends on price.** You pay the price at the moment you buy. Buy Yes cheap early and you profit big if they win. Buy Yes when the price is already high and your upside is small. Buy No on a favorite when everyone thinks they will win, which is cheap No, and you profit a lot if they get eliminated. This is exactly the mechanic Aarav described.
 
 - **Tuning b.** Pick b so a typical five to ten token buy moves the price a few points. Too small and prices swing wildly on one bet. Too large and prices barely move. Tune it against the 50 token budget and the expected number of bettors.
 
@@ -342,7 +342,7 @@ Each phase ends in a screenshot and a sign-off gate. Tier tags map to the model 
 ### Phase 0. Planning and design
 - Read this doc. Ask the Open Questions. [Tier A]
 - Produce the architecture doc, the data models, and the task graph. [Tier A]
-- Gate. The team approves the plan.
+- Gate. Aarav approves the plan.
 
 ### Phase 1. Skeleton and island
 - Next.js app, repo structure, shared types package. [Tier D]

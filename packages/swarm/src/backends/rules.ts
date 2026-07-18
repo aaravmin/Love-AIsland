@@ -1811,7 +1811,19 @@ function chooseOutcomeRich(
   // timid one drifts out of conversations that a bold one turns into something.
   const temperament =
     ctx.self.klass === "timid" ? 0.7 : ctx.self.klass === "bold" ? 1.25 : 1;
-  if (rand() >= COMMIT_CHANCE[intent] * temperament) return prefer(["nothing"]) ?? "nothing";
+  const droughtLimit = Math.max(0, Math.floor(tunables.swarm.conversationDroughtLimit));
+  const recent = rel?.recent ?? [];
+  const socialDrought =
+    droughtLimit > 0 &&
+    recent.length >= droughtLimit &&
+    recent.slice(-droughtLimit).every((outcome) => outcome === "nothing");
+  // "Nothing" stays the modal result, but a pair cannot talk indefinitely
+  // without ever developing warmth or tension. This also gives the market and
+  // vote reasoning actual relationship evidence to react to in a rules-only
+  // run instead of leaving those systems starved forever.
+  if (!socialDrought && rand() >= COMMIT_CHANCE[intent] * temperament) {
+    return prefer(["nothing"]) ?? "nothing";
+  }
 
   const soothing = deEscalating(transcript, rel);
   const withTruce = (list: ConvOutcome["outcome"][], at = 0): ConvOutcome["outcome"][] =>
