@@ -84,6 +84,28 @@ export function isWalkable(x: number, y: number): boolean {
   return map.walkable[ty]?.[tx] === true;
 }
 
+// A contestant occupies more than the single pixel at its feet. Check a small
+// octagonal footprint so a valid center point cannot leave the visible body
+// hanging over ocean, pond water, or a structure. Keeping this separate from
+// isWalkable preserves the exact tile-mask primitive for map tooling and lets
+// movement tune the body radius without changing the map artifact.
+export function isWalkableFootprint(x: number, y: number, radiusPx: number): boolean {
+  const r = Math.max(0, radiusPx);
+  if (!isWalkable(x, y)) return false;
+  if (r === 0) return true;
+  const diagonal = r / Math.SQRT2;
+  return [
+    [r, 0],
+    [-r, 0],
+    [0, r],
+    [0, -r],
+    [diagonal, diagonal],
+    [diagonal, -diagonal],
+    [-diagonal, diagonal],
+    [-diagonal, -diagonal],
+  ].every(([dx, dy]) => isWalkable(x + dx!, y + dy!));
+}
+
 // Center of a uniformly random walkable tile; spawn placement.
 export function randomWalkablePosition(rand: () => number = Math.random): {
   x: number;

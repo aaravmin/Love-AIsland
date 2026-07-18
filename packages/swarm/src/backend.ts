@@ -49,6 +49,12 @@ export interface ModelBackend {
   // billable backends, so a local, hosted, or rule-driven game never burns
   // budget.
   readonly billable: boolean;
+  // Optional non-queuing concurrency ceiling for the primary. Local model
+  // servers commonly process one generation at a time; admitting a whole
+  // scheduler wave only makes every request wait behind the first and hit its
+  // timeout. A resilient wrapper serves overflow immediately from rules while
+  // preserving the primary for the calls it can actually run.
+  readonly maxConcurrency?: number;
 
   // Cheap reachability probe. Backends that cannot fail answer true.
   healthy(): Promise<boolean>;

@@ -2,7 +2,7 @@ import { TICK_MS } from "@arena/shared";
 
 // Position interpolation buffer (task 3.4): the socket layer pushes every
 // contestant's tick-diff position stamped with the client receive time; the
-// Phaser scene renders ~2 ticks in the past and lerps between the samples
+// Phaser scene renders one tick in the past and lerps between the samples
 // that bracket that moment. Client receive time (not the diff's server t)
 // keys the buffer so clock skew between machines is irrelevant.
 //
@@ -10,7 +10,9 @@ import { TICK_MS } from "@arena/shared";
 // contestant and are read every animation frame -- neither belongs in a
 // React render cycle.
 
-export const RENDER_DELAY_MS = 2 * TICK_MS;
+// One tick is enough to bracket ordinary network jitter without making live
+// conversation/fight events appear detached from sprites by a full 300 ms.
+export const RENDER_DELAY_MS = TICK_MS;
 
 // A sprite is "moving" when its bracketing samples are meaningfully apart;
 // beyond this idle window with no fresh sample it is standing still.

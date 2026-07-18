@@ -13,20 +13,24 @@ import { cn } from "@/lib/utils";
 export function ResultsScreen() {
   const phase = useGameStore((s) => s.phase);
   const results = useGameStore((s) => s.results);
+  const roomCode = useGameStore((s) => s.room?.code ?? null);
   const winnerId = useGameStore((s) => s.winnerContestantId);
   const winnerName = useGameStore((s) =>
     (results?.winnerContestantId ?? s.winnerContestantId)
       ? s.contestants[results?.winnerContestantId ?? s.winnerContestantId!]?.name
       : undefined,
   );
-  const [dismissed, setDismissed] = useState(false);
+  // Scope dismissal to one room. Switching islands must not carry the old
+  // winner overlay's local UI state into the new game.
+  const [dismissedRoom, setDismissedRoom] = useState<string | null>(null);
+  const dismissed = roomCode !== null && dismissedRoom === roomCode;
 
   if (phase !== "settled") return null;
   if (!results && !winnerId) return null;
   if (dismissed) {
     return (
       <button
-        onClick={() => setDismissed(false)}
+        onClick={() => setDismissedRoom(null)}
         className="absolute top-4 left-1/2 z-40 -translate-x-1/2 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground shadow-lg"
       >
         👑 Show results
@@ -40,7 +44,7 @@ export function ResultsScreen() {
     <div className="absolute inset-0 z-40 flex items-center justify-center overflow-y-auto bg-[#1a0714]/95 p-4 backdrop-blur">
       <div className="relative my-auto w-full max-w-md rounded-2xl border border-primary/30 bg-card p-6 shadow-2xl">
         <button
-          onClick={() => setDismissed(true)}
+          onClick={() => setDismissedRoom(roomCode)}
           className="absolute top-3 right-3 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label="Dismiss results"
         >

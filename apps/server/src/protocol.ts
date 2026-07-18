@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { maxHpFromGrit, validateStats } from "@arena/shared";
 import type { Contestant, RoomConfig, RoomInfo, Spectator } from "@arena/shared";
-import { handleAdminCmd } from "./admin.js";
+import { handleAdminCmd, isOperatorKey } from "./admin.js";
 import { recordContact } from "./contacts.js";
 import { maybeScheduleAutoStart, MAX_CONTESTANTS, MAX_SPECTATORS, startGame } from "./lifecycle.js";
 import { randomWalkablePosition } from "./map.js";
@@ -224,9 +224,14 @@ export function registerHandlers(io: ArenaServer): void {
       ack({ ok: startGame(room.io, Date.now(), room) });
     });
 
-    socket.on("room:list", (ack) => {
+    socket.on("room:list", (payload, ack) => {
       if (typeof ack !== "function") return;
-      ack({ rooms: allRooms().map(roomInfo) });
+      const room = currentRoom(socket);
+      const isAdmin = isOperatorKey(payload?.key);
+      // A normal viewer can inspect the game they are already in, but cannot
+      // enumerate room codes or historical games. Admins retain the complete
+      // operator view from both /admin and the main-island Games menu.
+      ack({ rooms: (isAdmin ? allRooms() : [room]).map(roomInfo), isAdmin });
     });
 
     socket.on("spectator:join", (payload, ack) => {
@@ -260,12 +265,20 @@ export function registerHandlers(io: ArenaServer): void {
       if (spectator) {
         spectator.name = name;
         spectator.phone = phone;
+        if (typeof payload.notify === "boolean") spectator.notify = payload.notify;
       } else {
         if (Object.keys(state.spectators).length >= MAX_SPECTATORS) {
           ack({ ok: false, spectator: null as never, snapshot: assembleSnapshot(null, roomMeta(room)) });
           return;
         }
-        spectator = { id: randomUUID(), clientId, name, phone, tokens: 50, notify: false } satisfies Spectator;
+        spectator = {
+          id: randomUUID(),
+          clientId,
+          name,
+          phone,
+          tokens: 50,
+          notify: payload.notify === true,
+        } satisfies Spectator;
         state.spectators[spectator.id] = spectator;
       }
       void socket.join(specRoom(spectator.id));

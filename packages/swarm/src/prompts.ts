@@ -641,7 +641,7 @@ export function buildDecisionUser(ctx: AgentContextView): string {
     if (block) lines.push(block);
   }
   lines.push(
-    "Choose the one action your class and this exact moment call for. Your reasoning is a PRIVATE first-person thought only the audience hears, never the other islanders, so make it vivid and honest about what is really going on in you right now, whether that is a scheme, a crush, nerves, boredom, or a grudge. Do not narrate the obvious, and never fall back on a generic line.",
+    "Choose the one action your class and this exact moment call for. If you are approaching someone to campaign against a different islander, put that islander's exact name in voteTarget; otherwise use null. Your reasoning is a PRIVATE first-person thought only the audience hears, never the other islanders, so make it vivid and honest about what is really going on in you right now, whether that is a scheme, a crush, nerves, boredom, or a grudge. Do not narrate the obvious, and never fall back on a generic line.",
   );
   return lines.join("\n");
 }
@@ -674,6 +674,11 @@ export const DECIDE_TOOL = {
         type: ["string", "null"] as const,
         description: "The exact name of a nearby contestant, or null for wander/layLow.",
       },
+      voteTarget: {
+        type: ["string", "null"] as const,
+        description:
+          "The exact name you are campaigning to vote out while approaching a confidant, or null when this is not a vote plan.",
+      },
       reasoning: {
         type: "string" as const,
         // Rewritten by promptRules() on every flag change; the initial value is
@@ -681,7 +686,7 @@ export const DECIDE_TOOL = {
         description: "",
       },
     },
-    required: ["action", "target", "reasoning"],
+    required: ["action", "target", "voteTarget", "reasoning"],
   },
 };
 

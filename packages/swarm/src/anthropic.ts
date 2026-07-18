@@ -69,6 +69,17 @@ function resolveTargetId(ctx: AgentContextView, name: unknown): string | null {
   return hit ? hit.id : null;
 }
 
+
+function resolveVoteTargetId(ctx: AgentContextView, name: unknown): string | null {
+  if (typeof name !== "string" || name.length === 0) return null;
+  const lower = name.trim().toLowerCase();
+  return (
+    ctx.nearby.find((n) => n.name.toLowerCase() === lower)?.id ??
+    ctx.relationships?.find((r) => r.name.toLowerCase() === lower)?.id ??
+    null
+  );
+}
+
 // One decision call. Throws on timeout/error/malformed output so the caller
 // falls back to the rule engine for this agent this round.
 export async function llmDecision(
@@ -93,6 +104,7 @@ export async function llmDecision(
   const decision: AgentDecision = {
     action,
     target: resolveTargetId(ctx, input.target),
+    voteTarget: resolveVoteTargetId(ctx, input.voteTarget),
     reasoning: typeof input.reasoning === "string" ? input.reasoning : "",
   };
   const usage = usageOf(msg.usage);

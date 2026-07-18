@@ -145,6 +145,7 @@ export type Tunables = {
     spatialBehavior: boolean; // crowded/secluded changes what an agent does
     perTickCallBudget: boolean; // cap model calls per tick, degrade to rules
     conversationHistory: boolean; // client retains ended transcripts
+    phasePacing: boolean; // gentler opening, quicker late game
   };
 
   // Conflict ramps in over a warmup window rather than switching on at once, so
@@ -240,6 +241,10 @@ export type Tunables = {
     // How often a pleasant ordinary exchange is worth remembering as one. Kept
     // under half so "nothing came of it" stays the common ending.
     amicableChance: number;
+    // After this many consecutive "nothing" outcomes between the same pair,
+    // the rule resolver must let the next eligible exchange become a real
+    // social outcome. Zero disables the drought breaker.
+    conversationDroughtLimit: number;
     // Per-agent ring of recently spoken line ids, excluded from selection so a
     // line does not recur across conversations the way it does today.
     recentlySaidWindow: number;
@@ -247,6 +252,12 @@ export type Tunables = {
     // before the primary is skipped outright, and how long it is skipped for.
     breakerFailuresToOpen: number;
     breakerCooldownMs: number;
+    // Agent thought cadence by run phase. One is the original 15-30 second
+    // interval; above one slows it, below one speeds it up.
+    thinkEarlyScale: number;
+    thinkMidScale: number;
+    thinkLateScale: number;
+    thinkEndgameScale: number;
   };
 
   // Decision-engine constants. These tune how the rule-based fallback engine
@@ -388,6 +399,13 @@ export type Tunables = {
   movement: {
     idlePaceScale: number;
     talkingPaceScale: number;
+    earlyPaceScale: number;
+    midPaceScale: number;
+    latePaceScale: number;
+    endgamePaceScale: number;
+    // Radius sampled around the sprite's feet when checking terrain. A center
+    // point alone lets half a body hang over the coast or a pond.
+    footprintRadiusPx: number;
   };
 
   // One run seed makes a run reproducible and betting auditable. Zero means
@@ -447,6 +465,7 @@ export function readTunables(env: NodeJS.ProcessEnv = process.env): Tunables {
       spatialBehavior: f("ISLAND_SPATIAL_BEHAVIOR"),
       perTickCallBudget: f("ISLAND_CALL_BUDGET"),
       conversationHistory: f("ISLAND_CONVERSATION_HISTORY"),
+      phasePacing: f("ISLAND_PHASE_PACING"),
     },
 
     conflict: {
@@ -523,9 +542,14 @@ export function readTunables(env: NodeJS.ProcessEnv = process.env): Tunables {
       voteWeightLikability: num(env, "ISLAND_VOTE_W_LIKABILITY", 0.3),
       voteWeightGrievance: num(env, "ISLAND_VOTE_W_GRIEVANCE", 0.15),
       amicableChance: num(env, "ISLAND_AMICABLE_CHANCE", 0.35),
+      conversationDroughtLimit: num(env, "ISLAND_CONVERSATION_DROUGHT_LIMIT", 2),
       recentlySaidWindow: num(env, "ISLAND_RECENTLY_SAID_WINDOW", 24),
       breakerFailuresToOpen: num(env, "ISLAND_BREAKER_FAILURES", 3),
       breakerCooldownMs: num(env, "ISLAND_BREAKER_COOLDOWN_MS", 30_000),
+      thinkEarlyScale: num(env, "ISLAND_THINK_EARLY_SCALE", 1.25),
+      thinkMidScale: num(env, "ISLAND_THINK_MID_SCALE", 1),
+      thinkLateScale: num(env, "ISLAND_THINK_LATE_SCALE", 0.78),
+      thinkEndgameScale: num(env, "ISLAND_THINK_ENDGAME_SCALE", 0.55),
     },
 
     decision: {
@@ -612,6 +636,11 @@ export function readTunables(env: NodeJS.ProcessEnv = process.env): Tunables {
     movement: {
       idlePaceScale: num(env, "ISLAND_IDLE_PACE", 1),
       talkingPaceScale: num(env, "ISLAND_TALKING_PACE", 0.18),
+      earlyPaceScale: num(env, "ISLAND_MOVE_EARLY_SCALE", 0.85),
+      midPaceScale: num(env, "ISLAND_MOVE_MID_SCALE", 1),
+      latePaceScale: num(env, "ISLAND_MOVE_LATE_SCALE", 1.12),
+      endgamePaceScale: num(env, "ISLAND_MOVE_ENDGAME_SCALE", 1.25),
+      footprintRadiusPx: num(env, "ISLAND_FOOTPRINT_RADIUS_PX", 5),
     },
 
     seed: num(env, "ISLAND_RUN_SEED", 0),

@@ -9,19 +9,30 @@ export type Onboarding = { name: string; phone: string };
 
 export function getRoom(): string {
   if (typeof window === "undefined") return "MAIN";
-  return window.localStorage.getItem(ROOM_KEY) || "MAIN";
+  try {
+    return window.localStorage.getItem(ROOM_KEY) || "MAIN";
+  } catch {
+    // Privacy-restricted browsers can expose localStorage but throw on access.
+    // The game remains usable for this visit; only reload persistence is lost.
+    return "MAIN";
+  }
 }
 
 export function setRoom(room: string): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(ROOM_KEY, room);
+  try {
+    window.localStorage.setItem(ROOM_KEY, room);
+  } catch {
+    // Best-effort persistence; joinedRoomCode still keeps the active tab in
+    // the correct room when storage is unavailable.
+  }
 }
 
 export function getOnboarding(): Onboarding | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(ONBOARDING_KEY);
-  if (!raw) return null;
   try {
+    const raw = window.localStorage.getItem(ONBOARDING_KEY);
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Onboarding>;
     if (typeof parsed.name !== "string" || typeof parsed.phone !== "string") return null;
     return { name: parsed.name, phone: parsed.phone };
@@ -32,5 +43,9 @@ export function getOnboarding(): Onboarding | null {
 
 export function setOnboarding(data: Onboarding): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify(data));
+  try {
+    window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify(data));
+  } catch {
+    // The join flow can continue in memory even when persistence is blocked.
+  }
 }

@@ -152,7 +152,11 @@ test("odds move across a run with no bets placed at all", async () => {
     Object.values(state.markets).map((m) => [m.contestantId, priceYes(m)] as const),
   );
 
-  await talk(8);
+  // "Nothing happened" is intentionally the modal outcome, so eight seeded
+  // conversations can form a perfectly valid neutral streak. Exercise a
+  // representative run long enough to require at least one observable social
+  // result without turning that intended randomness into a flaky assertion.
+  await talk(24);
 
   assert.equal(state.trades.length, 0, "this run placed no bets");
   const moved = Object.values(state.markets).filter(

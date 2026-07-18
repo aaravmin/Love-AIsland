@@ -56,6 +56,7 @@ export const islandFlags: IslandFlags = {
   spatialBehavior: false,
   perTickCallBudget: false,
   conversationHistory: false,
+  phasePacing: false,
 };
 
 export function adoptServerFlags(flags: Snapshot["flags"] | undefined): void {

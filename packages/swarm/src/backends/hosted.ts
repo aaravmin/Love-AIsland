@@ -60,6 +60,16 @@ function resolveTargetId(ctx: AgentContextView, name: unknown): string | null {
   return ctx.nearby.find((n) => n.name.toLowerCase() === lower)?.id ?? null;
 }
 
+function resolveVoteTargetId(ctx: AgentContextView, name: unknown): string | null {
+  if (typeof name !== "string" || name.trim().length === 0) return null;
+  const lower = name.trim().toLowerCase();
+  return (
+    ctx.nearby.find((n) => n.name.toLowerCase() === lower)?.id ??
+    ctx.relationships?.find((r) => r.name.toLowerCase() === lower)?.id ??
+    null
+  );
+}
+
 function headersFor(apiKey: string | undefined): Record<string, string> {
   const h: Record<string, string> = { "content-type": "application/json" };
   // Some free tiers (a local proxy, a provider gated by IP allowlist instead
@@ -160,6 +170,7 @@ export function createHostedBackend(opts: HostedOptions): ModelBackend {
       const value: AgentDecision = {
         action: parsed.action as AgentDecision["action"],
         target: resolveTargetId(ctx, parsed.target),
+        voteTarget: resolveVoteTargetId(ctx, parsed.voteTarget),
         reasoning:
           typeof parsed.reasoning === "string" ? clampLine(parsed.reasoning, REASONING_LIMIT) : "",
       };
@@ -265,6 +276,7 @@ export function createHostedBackend(opts: HostedOptions): ModelBackend {
           const value: AgentDecision = {
             action: entry.action as AgentDecision["action"],
             target: resolveTargetId(ctx, entry.target),
+            voteTarget: resolveVoteTargetId(ctx, entry.voteTarget),
             reasoning:
               typeof entry.reasoning === "string"
                 ? clampLine(entry.reasoning as string, REASONING_LIMIT)

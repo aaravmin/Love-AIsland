@@ -24,10 +24,6 @@ export default function PhaserGame() {
       // camera in IslandScene) so there's no color seam during the brief
       // window before the scene's own camera background takes over.
       backgroundColor: "#32b8e8",
-      // Without this, the WebGL backbuffer can be swapped/cleared before an
-      // external capture (screenshots, toDataURL) reads it, showing a blank
-      // or transparent canvas even though the live page renders fine.
-      preserveDrawingBuffer: true,
       scale: {
         mode: Phaser.Scale.RESIZE,
         width: container.clientWidth || window.innerWidth,

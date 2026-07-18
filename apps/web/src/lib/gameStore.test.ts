@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { MarketPublic, PublicContestant } from "@arena/shared";
+import type { MarketPublic, PublicContestant, Snapshot } from "@arena/shared";
 import { normalizedWinProbs, selectMyContestantId, selectMyPositions, useGameStore } from "./gameStore";
 import { islandFlags } from "./islandFlags";
 
@@ -19,6 +19,39 @@ function market(overrides: Partial<MarketPublic> & { contestantId: string }): Ma
 
 function contestant(id: string, alive: boolean): PublicContestant {
   return { id, alive } as unknown as PublicContestant;
+}
+
+function roomSnapshot(code: string, activeConversation = false): Snapshot {
+  const contestants = [
+    { ...contestant("a", true), x: 10, y: 20 },
+    { ...contestant("b", true), x: 30, y: 40 },
+  ];
+  return {
+    phase: "running",
+    room: {
+      code,
+      name: `Room ${code}`,
+      isMain: code === "MAIN",
+      config: { agentsPerPerson: 2, lengthMinutes: 15, eventCount: 2 },
+    },
+    startedAt: 1,
+    autoStartAt: null,
+    timeline: null,
+    contestants,
+    markets: [market({ contestantId: "a" }), market({ contestantId: "b" })],
+    activeConversations: activeConversation
+      ? [{ id: "live-conv", participantIds: ["a", "b"], startedAt: 1 }]
+      : [],
+    events: [],
+    hostile: { active: false, startedAt: null, fullDecayAt: null },
+    spend: {} as Snapshot["spend"],
+    deathOrder: [],
+    winnerContestantId: null,
+    tokens: 0,
+    positions: [],
+    flags: {} as Snapshot["flags"],
+    seed: 1,
+  };
 }
 
 test("setFollowedContestantId round-trips and defaults to null", () => {
@@ -112,4 +145,79 @@ test("removeConversation does not retain history when the flag is off (flags-off
   const before = useGameStore.getState().conversationHistory.length;
   useGameStore.getState().removeConversation("conv2");
   assert.equal(useGameStore.getState().conversationHistory.length, before);
+});
+
+test("hydrate restores active conversation markers so post-reload messages are accepted", () => {
+  useGameStore.setState({ room: null, conversations: {}, conversationHistory: [] });
+  useGameStore.getState().hydrate(roomSnapshot("ABCDE", true), null);
+
+  const restored = useGameStore.getState().conversations["live-conv"];
+  assert.ok(restored);
+  assert.equal(restored.x, 20);
+  assert.equal(restored.y, 30);
+
+  useGameStore.getState().addConvMessage({
+    convId: "live-conv",
+    speakerId: "a",
+    text: "still talking",
+    tone: "neutral",
+  });
+  assert.equal(useGameStore.getState().conversations["live-conv"]?.messages.length, 1);
+});
+
+test("same-room resnapshot removes stale ongoing markers but keeps ended markers briefly", () => {
+  useGameStore.setState({
+    room: roomSnapshot("ABCDE").room,
+    conversations: {
+      stale: {
+        id: "stale",
+        participantIds: ["a", "b"],
+        x: 0,
+        y: 0,
+        messages: [],
+        outcome: null,
+        endedAt: null,
+      },
+      ended: {
+        id: "ended",
+        participantIds: ["a", "b"],
+        x: 0,
+        y: 0,
+        messages: [],
+        outcome: "amicable",
+        endedAt: 2,
+      },
+    },
+  });
+
+  useGameStore.getState().hydrate(roomSnapshot("ABCDE"), null);
+  assert.equal(useGameStore.getState().conversations.stale, undefined);
+  assert.ok(useGameStore.getState().conversations.ended);
+});
+
+test("hydrate clears room-scoped overlays and selection when switching islands", () => {
+  useGameStore.setState({
+    room: roomSnapshot("AAAAA").room,
+    selectedContestantId: "a",
+    followedContestantId: "a",
+    openConversationId: "old-conv",
+    conversationHistory: [{
+      id: "old-conv",
+      participantIds: ["a", "b"],
+      x: 0,
+      y: 0,
+      messages: [],
+      outcome: null,
+      endedAt: null,
+    }],
+    results: { winnerContestantId: "a" } as never,
+  });
+
+  useGameStore.getState().hydrate(roomSnapshot("BBBBB"), null);
+  const state = useGameStore.getState();
+  assert.equal(state.selectedContestantId, null);
+  assert.equal(state.followedContestantId, null);
+  assert.equal(state.openConversationId, null);
+  assert.deepEqual(state.conversationHistory, []);
+  assert.equal(state.results, null);
 });

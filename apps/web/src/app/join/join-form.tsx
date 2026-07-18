@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { getClientId } from "@/lib/clientId";
 import { useGameStore } from "@/lib/gameStore";
 import { getRoom, setOnboarding, setRoom } from "@/lib/onboarding";
-import { joinSpectator, setNotifPref } from "@/lib/socket";
+import { joinRoom, joinSpectator } from "@/lib/socket";
 import { cn } from "@/lib/utils";
 
 const NAME_MAX = 20;
@@ -79,8 +79,22 @@ export function JoinForm() {
     setBusy(true);
     try {
       setOnboarding({ name: name.trim(), phone: phone.trim() });
-      await joinSpectator(name.trim(), phone.trim());
-      await setNotifPref(notify);
+      // A direct /join?room= link may not have entered its room yet. Resolve
+      // that before registering so the spectator cannot land in MAIN by race.
+      if (useGameStore.getState().room?.code !== room) {
+        const roomAck = await joinRoom(room);
+        if (!roomAck.ok) {
+          toast.error(roomAck.error ?? "That game is no longer available.");
+          return;
+        }
+      }
+      // Notification preference travels with sign-in, removing a second
+      // serialized acknowledgement from the common join path.
+      const joinAck = await joinSpectator(name.trim(), phone.trim(), notify);
+      if (!joinAck.ok) {
+        toast.error("That game is full or your sign-in details were rejected.");
+        return;
+      }
       if (mode === "create") {
         if (gameStarted) {
           toast.error("The game already started - you can still bet.");

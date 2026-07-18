@@ -1410,6 +1410,7 @@ function decideAction(ctx: AgentContextView, rand: () => number): AgentDecision 
     return {
       action: "approach",
       target: plan.ally.id,
+      voteTarget: plan.toward?.id ?? null,
       reasoning: other
         ? `They are coming for me tonight. I need ${plan.ally.name} to be saying ${other}'s name instead of mine.`
         : `They are coming for me tonight. ${plan.ally.name} is the only one who might still listen.`,
@@ -1426,7 +1427,12 @@ function decideAction(ctx: AgentContextView, rand: () => number): AgentDecision 
     if (pushing && mark?.feasible && oddsPosture(ctx) !== "withdraw") {
       const confidant = nearest(allies) ?? nearest(nonAllies.filter((n) => n.id !== mark.id));
       if (confidant) {
-        return { action: "approach", target: confidant.id, reasoning: mark.line };
+        return {
+          action: "approach",
+          target: confidant.id,
+          voteTarget: mark.id,
+          reasoning: mark.line,
+        };
       }
     }
   }

@@ -143,6 +143,41 @@ test("the breaker stops paying for a primary that is down", async () => {
   assert.ok(calls < 20, `primary was skipped once the breaker opened (called ${calls}/20)`);
 });
 
+test("a saturated local primary serves overflow from rules without queueing", async () => {
+  let primaryCalls = 0;
+  let releaseFirst!: () => void;
+  const firstReleased = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  const local: ModelBackend = {
+    ...deadBackend,
+    name: "local",
+    maxConcurrency: 1,
+    async decide() {
+      primaryCalls += 1;
+      await firstReleased;
+      return {
+        value: { action: "wander", target: null, reasoning: "model answer" } as AgentDecision,
+        usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 },
+        latencyMs: 1,
+        cached: false,
+        backend: "local",
+        fallback: false,
+      };
+    },
+  };
+  const backend = createResilientBackend({ primary: local, rules: createRuleBackend() });
+
+  const first = backend.decide(ctx(), rand);
+  const overflow = await backend.decide(ctx({ id: "a2", name: "Jules" }), rand);
+  assert.equal(primaryCalls, 1, "overflow never entered the saturated primary");
+  assert.equal(overflow.fallback, true, "overflow received an immediate complete rule decision");
+
+  releaseFirst();
+  const admitted = await first;
+  assert.equal(admitted.fallback, false, "the admitted primary call still completed normally");
+});
+
 test("every configuration still produces a decision and a line", async () => {
   for (const kind of ["rules", "local", "anthropic", "hosted"] as const) {
     const backend = createBackend(

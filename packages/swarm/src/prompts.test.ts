@@ -20,6 +20,7 @@ import {
   sharedRules,
   SPEAK_TOOL,
 } from "./prompts.js";
+import { fallbackDecision } from "./fallback.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures.
@@ -461,5 +462,43 @@ test("no prompt text this module emits contains a dash of any kind", () => {
       assert.ok(!/[—–]/.test(t), `an em or en dash survived: ${t.slice(0, 80)}`);
       assert.ok(!/ - /.test(t), `a spaced dash survived: ${t.slice(0, 80)}`);
     }
+  });
+});
+
+test("a feasible fallback campaign carries the rival separately from the confidant", () => {
+  withFlagsOn(() => {
+    const context = baseCtx({
+      self: {
+        ...baseCtx().self,
+        allies: ["c1", "d1"],
+      },
+      nearby: [
+        {
+          ...baseCtx().nearby[0]!,
+          id: "b1",
+          name: "Bo",
+          kills: 3,
+          notoriety: 40,
+          allied: false,
+          distance: 45,
+        },
+        {
+          ...baseCtx().nearby[0]!,
+          id: "c1",
+          name: "Cass",
+          kills: 0,
+          notoriety: 0,
+          allied: true,
+          distance: 20,
+        },
+      ],
+      event: { kind: "weakestLink", secondsUntil: 30, line: "The Vote is coming." },
+      world: world({ phase: "mid", posture: "imminent", eventKind: "weakestLink" }),
+    });
+
+    const decision = fallbackDecision(context, () => 0);
+    assert.equal(decision.action, "approach");
+    assert.equal(decision.target, "c1", "the physical target is the confidant");
+    assert.equal(decision.voteTarget, "b1", "the social target is the rival");
   });
 });

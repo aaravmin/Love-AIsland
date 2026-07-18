@@ -252,6 +252,50 @@ export const useGameStore = create<GameStore>()((set) => ({
           return [m.contestantId, { ...m, sparkline }];
         }),
       );
+
+      // A snapshot carries every conversation still running on the server.
+      // Rebuild lightweight client records on a cold reload so subsequent
+      // conv:message / conv:ended events have something to update and Phaser
+      // can immediately restore their interaction markers. Existing same-room
+      // records keep the transcript already accumulated in this tab.
+      const activeConversations: Record<string, ClientConversation> = {};
+      for (const summary of snapshot.activeConversations) {
+        const existing = sameRoom ? prev.conversations[summary.id] : undefined;
+        if (existing) {
+          activeConversations[summary.id] = existing;
+          continue;
+        }
+        const participants = summary.participantIds
+          .map((id) => contestants[id])
+          .filter((c): c is PublicContestant => c !== undefined);
+        const x = participants.length > 0
+          ? participants.reduce((sum, c) => sum + c.x, 0) / participants.length
+          : 0;
+        const y = participants.length > 0
+          ? participants.reduce((sum, c) => sum + c.y, 0) / participants.length
+          : 0;
+        activeConversations[summary.id] = {
+          id: summary.id,
+          participantIds: summary.participantIds,
+          x,
+          y,
+          messages: [],
+          outcome: null,
+          endedAt: null,
+        };
+      }
+      // Treat the snapshot as authoritative for conversations that are still
+      // ongoing. If conv:ended was the packet that triggered this resnapshot,
+      // retaining every previous record would leave a permanent "talking"
+      // marker. Locally-ended records may stay for their short reading window;
+      // the socket's existing linger timer owns their eventual removal.
+      const endedConversations = sameRoom
+        ? Object.fromEntries(
+            Object.entries(prev.conversations).filter(([, conv]) => conv.endedAt !== null),
+          )
+        : {};
+      const conversations = { ...endedConversations, ...activeConversations };
+
       return {
         room: snapshot.room,
         phase: snapshot.phase,
@@ -260,14 +304,21 @@ export const useGameStore = create<GameStore>()((set) => ({
         timeline: snapshot.timeline,
         contestants,
         markets,
-        conversations: sameRoom ? prev.conversations : {},
+        conversations,
+        conversationHistory: sameRoom ? prev.conversationHistory : [],
+        selectedContestantId: sameRoom ? prev.selectedContestantId : null,
+        followedContestantId: sameRoom ? prev.followedContestantId : null,
+        openConversationId: sameRoom ? prev.openConversationId : null,
         feed: sameRoom ? prev.feed : [],
         eventCountdown,
         hostile,
         winnerContestantId: snapshot.winnerContestantId,
         spectator,
-        // `results` is left untouched: it arrives via the live game:results
-        // event and a re-hydrate mustn't wipe the results screen mid-view.
+        // Preserve live results only for recovery inside the same room. A room
+        // switch must never show the previous island's winner or portfolio.
+        results: sameRoom ? prev.results : null,
+        swarmActivity: sameRoom ? prev.swarmActivity : {},
+        swarmStats: sameRoom ? prev.swarmStats : { calls: 0, cached: 0, fallback: 0 },
       };
     }),
 

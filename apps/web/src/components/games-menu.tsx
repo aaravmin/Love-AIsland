@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { useAdminKey } from "@/lib/adminSession";
 import { useGameStore } from "@/lib/gameStore";
 import { createRoom, joinRoom, listRooms, startRoom } from "@/lib/socket";
 import { cn } from "@/lib/utils";
@@ -24,9 +25,11 @@ function slug(n: number, one: string, many = one + "s") {
 
 export function GamesMenu() {
   const room = useGameStore((s) => s.room);
+  const adminKey = useAdminKey();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
+  const [roomListIsAdmin, setRoomListIsAdmin] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -35,14 +38,17 @@ export function GamesMenu() {
   const [name, setName] = useState("");
   const [cfg, setCfg] = useState<RoomConfig>({ agentsPerPerson: 2, lengthMinutes: 15, eventCount: 2 });
   const [createdCode, setCreatedCode] = useState<string | null>(null);
-  const [hostCode, setHostCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
 
   const isMain = room?.isMain ?? true;
 
   async function openMenu() {
     setMenuOpen((o) => !o);
-    if (!menuOpen) setRooms(await listRooms());
+    if (!menuOpen) {
+      const result = await listRooms(adminKey);
+      setRooms(result.rooms);
+      setRoomListIsAdmin(result.isAdmin);
+    }
   }
 
   function openCreate() {
@@ -62,7 +68,6 @@ export function GamesMenu() {
         return;
       }
       setCreatedCode(res.code);
-      setHostCode(res.code);
     } finally {
       setBusy(false);
     }
@@ -106,7 +111,7 @@ export function GamesMenu() {
     }
   }
 
-  const created = createdCode ? rooms.find((r) => r.code === createdCode) ?? { code: createdCode, config: cfg } : null;
+  const created = createdCode ? { code: createdCode, config: cfg } : null;
 
   return (
     <>
@@ -127,8 +132,11 @@ export function GamesMenu() {
           <>
             <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
             <div className="absolute right-0 z-50 mt-2 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
-              <p className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase">Games</p>
-              {rooms.map((r) => (
+              <p className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase">
+                <span>{roomListIsAdmin ? "Games" : "Island access"}</span>
+                {roomListIsAdmin ? <span className="text-primary">Admin</span> : null}
+              </p>
+              {roomListIsAdmin ? rooms.map((r) => (
                 <button
                   key={r.code}
                   disabled={busy}
@@ -148,7 +156,18 @@ export function GamesMenu() {
                   </span>
                   {r.code === room?.code ? <Check className="size-4 shrink-0 text-primary" /> : null}
                 </button>
-              ))}
+              )) : (
+                <div className="mb-1 rounded-lg bg-muted/60 px-2 py-2 text-xs text-muted-foreground">
+                  <span className="block truncate font-semibold text-foreground">
+                    {isMain ? "Main Island" : room?.name ?? "Current island"}
+                  </span>
+                  {!isMain && room ? (
+                    <span className="font-mono">Code {room.code}</span>
+                  ) : (
+                    <span>Public island</span>
+                  )}
+                </div>
+              )}
               <div className="my-1 h-px bg-border" />
               <button
                 onClick={openCreate}
@@ -278,8 +297,6 @@ export function GamesMenu() {
         </DialogContent>
       </Dialog>
 
-      {/* hostCode is tracked to know when to show the host's Start button. */}
-      <span hidden>{hostCode}</span>
     </>
   );
 }

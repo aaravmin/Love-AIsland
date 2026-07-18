@@ -28,6 +28,13 @@ export function operatorKey(): string {
   return "dev-operator";
 }
 
+// Shared by every operator-only server boundary. The browser may persist and
+// resend the key, but that never grants access by itself: each request is
+// validated here against the server-side value.
+export function isOperatorKey(key: unknown): key is string {
+  return typeof key === "string" && key.length > 0 && key === operatorKey();
+}
+
 // Reset one room (ARCHITECTURE.md 6.8): rebuild its state + engine sub-state,
 // re-seed MAIN, and broadcast the fresh lobby to that room's sockets. The
 // shared LLM budget spans all rooms and is deliberately not reset here.
@@ -54,7 +61,7 @@ export function handleAdminCmd(
   payload: AdminCmdPayload,
   ack: (a: AdminCmdAck) => void
 ): void {
-  if (typeof payload?.key !== "string" || payload.key !== operatorKey()) {
+  if (!isOperatorKey(payload?.key)) {
     ack({ ok: false });
     return;
   }

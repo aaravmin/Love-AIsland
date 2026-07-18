@@ -31,11 +31,15 @@ export type AgentAction =
   | "layLow"
   | "proposeAlliance";
 
-// The decide-tool result. target is a contestant id (or null for wander/
-// layLow). reasoning is one short line, surfaced in the demo telemetry feed.
+// The decide-tool result. target is the person this physical action is aimed
+// at (or null for wander/layLow). A vote campaign is different: an islander
+// approaches a confidant while trying to turn the villa against somebody
+// else, so voteTarget carries that second, social target explicitly. The
+// server validates both ids independently before acting on either one.
 export type AgentDecision = {
   action: AgentAction;
   target: string | null;
+  voteTarget?: string | null;
   reasoning: string;
 };
 

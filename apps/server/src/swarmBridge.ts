@@ -675,6 +675,12 @@ export function createDecisionSink(io: ArenaServer): DecisionSink {
       if (c.intent.kind === "converse") return; // pinned mid-conversation
       const target = d.target ? state.contestants[d.target] : null;
       const targetOk = !!target && target.alive && dist(c, target) <= PERCEPTION_PX;
+      const voteTarget = d.voteTarget ? state.contestants[d.voteTarget] : null;
+      const voteTargetOk =
+        !!voteTarget &&
+        voteTarget.alive &&
+        voteTarget.id !== c.id &&
+        (d.action === "approach" || d.action === "proposeAlliance");
 
       // Private thoughts (viewers see them in the feed; in-game islanders do
       // not). At most one per decision, emitted via the agent's own room.
@@ -684,6 +690,17 @@ export function createDecisionSink(io: ArenaServer): DecisionSink {
         thought = true;
         emitAgentThought(room, c, text, kind);
       };
+
+      // A campaign has two targets: the confidant being approached and the
+      // rival whose name is being pushed. Previously only the first fit in the
+      // decision contract, so rich vote reasoning could never register a vote
+      // unless the agent also attacked its intended target. Validate the social
+      // target independently, surface the plan, then put the support on the
+      // authoritative ouster board.
+      if (voteTargetOk) {
+        emitThought(d.reasoning, "plan");
+        pushOuster(room, c, voteTarget!, Date.now());
+      }
 
       switch (d.action) {
         case "attack": {
@@ -705,7 +722,7 @@ export function createDecisionSink(io: ArenaServer): DecisionSink {
             // moves on them together. The threshold is the safety property -
             // it is what stops one aggressive islander removing people at will
             // between scheduled events.
-            pushOuster(room, c, target!, Date.now());
+            if (voteTarget?.id !== target!.id) pushOuster(room, c, target!, Date.now());
           }
           break;
         }

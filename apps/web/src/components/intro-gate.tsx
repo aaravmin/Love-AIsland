@@ -3,7 +3,8 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { setRoom } from "@/lib/onboarding";
+import { useHasAdminSession } from "@/lib/adminSession";
+import { getRoom, setRoom } from "@/lib/onboarding";
 import { joinRoom } from "@/lib/socket";
 import { IslandChoice } from "./island-choice";
 
@@ -31,6 +32,15 @@ function markChosen(): void {
   }
 }
 
+function clearChosen(): void {
+  try {
+    window.sessionStorage.removeItem(CHOSEN_KEY);
+  } catch {
+    // A storage-restricted browser still returns to the choice screen for the
+    // current visit; it may simply be asked again after another refresh.
+  }
+}
+
 type Phase = "loading" | "choice" | "intro";
 
 // A small stepped flow ahead of the intro screen: a QR/room link skips the
@@ -39,9 +49,29 @@ type Phase = "loading" | "choice" | "intro";
 // "enter the island" screen.
 export function IntroGate() {
   const [phase, setPhase] = useState<Phase>("loading");
+  const hasAdminSession = useHasAdminSession();
 
   useEffect(() => {
+    let active = true;
     const roomParam = new URLSearchParams(window.location.search).get("room")?.trim();
+
+    const finishJoin = (ok: boolean, error?: string, retryable = false) => {
+      if (!active) return;
+      if (!ok) {
+        toast.error(error ?? "Couldn't find that island.");
+        // A definitive "no such room" invalidates the capability. A timeout
+        // does not: keep the saved code so a brief outage cannot permanently
+        // strand a viewer on MAIN after their next reload.
+        if (!retryable) {
+          setRoom("MAIN");
+          clearChosen();
+        }
+        setPhase("choice");
+        return;
+      }
+      markChosen();
+      setPhase("intro");
+    };
 
     if (roomParam) {
       const code = roomParam.toUpperCase();
@@ -49,14 +79,10 @@ export function IntroGate() {
       // even before the join round-trip resolves.
       setRoom(code);
       void joinRoom(code)
-        .then((res) => {
-          if (!res.ok) toast.error(res.error ?? "Couldn't find that island.");
-        })
-        .finally(() => {
-          markChosen();
-          setPhase("intro");
-        });
-      return;
+        .then((res) => finishJoin(res.ok, res.error, res.retryable));
+      return () => {
+        active = false;
+      };
     }
 
     let chosen = false;
@@ -65,12 +91,32 @@ export function IntroGate() {
     } catch {
       chosen = false;
     }
+    // A chosen friend island is persisted in localStorage, but module/socket
+    // memory is not. Validate it on reload before revealing the game so an
+    // expired or mistyped capability code cannot silently fall back to MAIN.
+    const savedRoom = getRoom().trim().toUpperCase();
+    if (chosen && savedRoom !== "MAIN") {
+      void joinRoom(savedRoom).then((res) => finishJoin(res.ok, res.error, res.retryable));
+      return () => {
+        active = false;
+      };
+    }
+
     // Deciding the first step from sessionStorage/URL must happen after mount to
     // stay SSR-safe (both server and client first-render the "loading" screen),
     // so this initial setState in the effect is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPhase(chosen ? "intro" : "choice");
+    return () => {
+      active = false;
+    };
   }, []);
+
+  // A key reaches localStorage only after /admin validates it. Returning to
+  // the main island exposes the Games menu immediately instead of trapping
+  // the operator behind first-visit player onboarding. This is derived during
+  // render, so no mirrored effect state or cascading render is needed.
+  if (hasAdminSession) return null;
 
   if (phase === "choice") {
     return (

@@ -215,7 +215,7 @@ export default function CreateForm() {
       // enter it here so a hard refresh on /create cannot silently drop the
       // contestant into MAIN when the socket reconnects.
       const roomCode = getRoom().trim().toUpperCase();
-      if (roomCode !== "MAIN") {
+      if (useGameStore.getState().room?.code !== roomCode) {
         const roomAck = await joinRoom(roomCode);
         if (!roomAck.ok) {
           setSubmitError(roomAck.error ?? "That room is no longer available.");
@@ -225,7 +225,13 @@ export default function CreateForm() {
       // spectator:join is idempotent by clientId, so re-registering here
       // covers a server restart (or a /create deep link) where localStorage
       // still has onboarding but the server has never seen this client.
-      await joinSpectator(onboarding.name, onboarding.phone);
+      if (!useGameStore.getState().spectator) {
+        const joinAck = await joinSpectator(onboarding.name, onboarding.phone);
+        if (!joinAck.ok) {
+          setSubmitError("Sign in again before creating your islander.");
+          return;
+        }
+      }
       const ack = await createContestant(payload);
       if (!ack.ok) {
         setSubmitError(ack.error);

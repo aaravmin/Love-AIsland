@@ -1,41 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { RoomInfo } from "@arena/shared";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { setAdminKey, useAdminKey } from "@/lib/adminSession";
 import { useGameStore } from "@/lib/gameStore";
 import { adminCmd, listRooms } from "@/lib/socket";
-
-const KEY_STORAGE = "arena.operatorKey";
-
-// The stored key as a tiny external store: useSyncExternalStore gives a
-// hydration-safe localStorage read (server snapshot "", client value swapped
-// in post-hydration without a mismatch).
-const keyListeners = new Set<() => void>();
-
-function readStoredKey(): string {
-  const stored = window.localStorage.getItem(KEY_STORAGE);
-  if (stored) return stored;
-  // Local dev runs with the default operator key, so prefill it -- localhost
-  // gets admin powers (start/reset/force) without hunting for the key.
-  const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1") return "dev-operator";
-  return "";
-}
-
-function writeStoredKey(value: string): void {
-  window.localStorage.setItem(KEY_STORAGE, value);
-  for (const listener of keyListeners) listener();
-}
-
-function subscribeStoredKey(listener: () => void): () => void {
-  keyListeners.add(listener);
-  return () => keyListeners.delete(listener);
-}
+import { cn } from "@/lib/utils";
 
 // Ordering for the island list: MAIN pinned first, then in-progress games
 // (the ones an operator most often needs to reach), then lobbies, then
@@ -61,7 +37,9 @@ const PHASE_BADGE: Record<RoomInfo["phase"], string> = {
 export default function AdminPage() {
   const connected = useGameStore((s) => s.connected);
 
-  const key = useSyncExternalStore(subscribeStoredKey, readStoredKey, () => "");
+  const key = useAdminKey();
+  const [keyDraft, setKeyDraft] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [seedN, setSeedN] = useState(12);
   const [countdownSec, setCountdownSec] = useState(60);
@@ -71,11 +49,32 @@ export default function AdminPage() {
 
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [selectedCode, setSelectedCode] = useState("MAIN");
+  const keyInput = keyDraft ?? key;
 
   const refreshRooms = useCallback(async () => {
-    const next = await listRooms();
-    setRooms(next.slice().sort(compareRooms));
-  }, []);
+    const result = await listRooms(key);
+    setIsAdmin(result.isAdmin);
+    setRooms(result.rooms.slice().sort(compareRooms));
+  }, [key]);
+
+  async function signIn() {
+    setBusy(true);
+    try {
+      const result = await listRooms(keyInput);
+      if (!result.isAdmin) {
+        setIsAdmin(false);
+        toast.error("That operator key is not valid.");
+        return;
+      }
+      setAdminKey(keyInput);
+      setKeyDraft(null);
+      setIsAdmin(true);
+      setRooms(result.rooms.slice().sort(compareRooms));
+      toast.success("Signed in as admin. All games are now available from the island menu.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // Poll the island list so counts, phases, and newly-created games stay live
   // without a manual refresh. Also refreshed immediately after each command.
@@ -257,15 +256,33 @@ export default function AdminPage() {
               id="operator-key"
               type="password"
               placeholder="operator key"
-              value={key}
-              onChange={(e) => writeStoredKey(e.target.value)}
+              value={keyInput}
+              onChange={(e) => {
+                setKeyDraft(e.target.value);
+                setIsAdmin(false);
+              }}
             />
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 font-bold"
+                disabled={busy || !keyInput}
+                onClick={() => void signIn()}
+              >
+                {isAdmin ? "Admin signed in" : "Sign in"}
+              </Button>
+              <Link
+                href="/"
+                className={cn(buttonVariants({ variant: "outline" }), "flex-1 font-bold")}
+              >
+                Back to island
+              </Link>
+            </div>
           </div>
 
           <div className="flex gap-3">
             <Button
               className="flex-1 font-bold"
-              disabled={busy || !key || !inLobby}
+              disabled={busy || !isAdmin || !inLobby}
               onClick={() => run("start")}
             >
               Start
@@ -273,7 +290,7 @@ export default function AdminPage() {
             <Button
               variant="outline"
               className="flex-1 border-border font-bold text-foreground"
-              disabled={busy || !key}
+              disabled={busy || !isAdmin}
               onClick={() => run("reset")}
             >
               Reset
@@ -298,7 +315,7 @@ export default function AdminPage() {
               </div>
               <Button
                 className="font-bold"
-                disabled={busy || !key || (!inLobby && !running)}
+                disabled={busy || !isAdmin || (!inLobby && !running)}
                 onClick={() => run("seed", { count: seedN })}
               >
                 Seed players
@@ -319,7 +336,7 @@ export default function AdminPage() {
               <Button
                 variant="outline"
                 className="border-border font-bold text-foreground"
-                disabled={busy || !key || !inLobby || islanders === 0}
+                disabled={busy || !isAdmin || !inLobby || islanders === 0}
                 onClick={() => run("countdown", { seconds: countdownSec })}
               >
                 Start countdown
@@ -341,7 +358,7 @@ export default function AdminPage() {
               <Button
                 variant="outline"
                 className="border-border font-bold text-foreground"
-                disabled={busy || !key || !inLobby}
+                disabled={busy || !isAdmin || !inLobby}
                 onClick={() => run("setLength", { minutes: lengthMin })}
               >
                 Set length
@@ -358,7 +375,7 @@ export default function AdminPage() {
               <Button
                 variant="outline"
                 className="border-border font-bold text-foreground"
-                disabled={busy || !key || !running}
+                disabled={busy || !isAdmin || !running}
                 onClick={() => run("forceConversation")}
               >
                 Interaction
@@ -366,7 +383,7 @@ export default function AdminPage() {
               <Button
                 variant="outline"
                 className="border-border font-bold text-foreground"
-                disabled={busy || !key || !running}
+                disabled={busy || !isAdmin || !running}
                 onClick={() => run("forceEvent")}
               >
                 Next event (Purge)
@@ -374,7 +391,7 @@ export default function AdminPage() {
               <Button
                 variant="outline"
                 className="border-border font-bold text-foreground"
-                disabled={busy || !key || !running}
+                disabled={busy || !isAdmin || !running}
                 onClick={() => run("forceVote")}
               >
                 Force vote
@@ -382,7 +399,7 @@ export default function AdminPage() {
               <Button
                 variant="outline"
                 className="border-border font-bold text-foreground"
-                disabled={busy || !key || !running}
+                disabled={busy || !isAdmin || !running}
                 onClick={() => run("forceFallback")}
               >
                 Force fallback
@@ -390,7 +407,7 @@ export default function AdminPage() {
               <Button
                 variant="outline"
                 className="border-destructive/50 font-bold text-destructive"
-                disabled={busy || !key || !running}
+                disabled={busy || !isAdmin || !running}
                 onClick={() => run("forceEndgame")}
               >
                 Sudden death
@@ -432,7 +449,7 @@ export default function AdminPage() {
             <Button
               variant="outline"
               className="border-border font-bold text-foreground"
-              disabled={busy || !key || !running}
+              disabled={busy || !isAdmin || !running}
               onClick={() => run("armEvent", { eventKind, seconds: eventSec })}
             >
               Arm event

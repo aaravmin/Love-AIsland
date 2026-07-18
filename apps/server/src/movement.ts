@@ -1,6 +1,6 @@
 import { TICK_MS, tunables } from "@arena/shared";
 import type { Contestant } from "@arena/shared";
-import { isWalkable, TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./map.js";
+import { isWalkableFootprint, TILE_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "./map.js";
 import { rand } from "./social.js";
 import { state } from "./state.js";
 
@@ -60,6 +60,25 @@ function headingFor(id: string, now: number): Heading {
 
 function angleTo(from: Contestant, x: number, y: number): number {
   return Math.atan2(y - from.y, x - from.x);
+}
+
+function terrainAllows(x: number, y: number): boolean {
+  return isWalkableFootprint(x, y, tunables.movement.footprintRadiusPx);
+}
+
+// The opening should breathe and the finish should tighten. The timeline is
+// authoritative and already defines the same early/mid/late boundaries the
+// agents reason about, so visual movement follows it instead of inventing a
+// second clock. Disabling phasePacing restores the original constant speed.
+function phasePace(now: number): number {
+  if (!tunables.flags.phasePacing) return 1;
+  if (state.hostile.active) return Math.max(0, tunables.movement.endgamePaceScale);
+  const timeline = state.timeline;
+  if (!timeline) return Math.max(0, tunables.movement.earlyPaceScale);
+  if (now < timeline.purgeAt) return Math.max(0, tunables.movement.earlyPaceScale);
+  if (now < timeline.weakestLinkAt) return Math.max(0, tunables.movement.midPaceScale);
+  if (now < timeline.hostileAt) return Math.max(0, tunables.movement.latePaceScale);
+  return Math.max(0, tunables.movement.endgamePaceScale);
 }
 
 // Quadrant with the fewest living contestants; layLow drifts toward its
@@ -153,6 +172,7 @@ export function moveContestants(now: number): [id: string, x: number, y: number]
   const calm = tunables.flags.calmConversations;
   const talkingPace = Math.max(0, tunables.movement.talkingPaceScale);
   const idlePace = Math.max(0, tunables.movement.idlePaceScale);
+  const runPace = phasePace(now);
 
   for (const c of living) {
     const conversing = c.intent.kind === "converse";
@@ -161,7 +181,10 @@ export function moveContestants(now: number): [id: string, x: number, y: number]
     const h = headingFor(c.id, now);
     const paceScale = calm ? (conversing ? talkingPace : idlePace) : 1;
     const speed =
-      (BASE_SPEED + INSTINCT_SPEED_BONUS * c.stats.instinct) * (PACE[c.intent.kind] ?? 1) * paceScale;
+      (BASE_SPEED + INSTINCT_SPEED_BONUS * c.stats.instinct) *
+      (PACE[c.intent.kind] ?? 1) *
+      paceScale *
+      runPace;
     const step = speed * dt;
     const angle = desiredAngle(c, h, now);
 
@@ -172,7 +195,7 @@ export function moveContestants(now: number): [id: string, x: number, y: number]
       const a = angle + delta;
       const nx = c.x + Math.cos(a) * step;
       const ny = c.y + Math.sin(a) * step;
-      if (isWalkable(nx, ny)) {
+      if (terrainAllows(nx, ny)) {
         c.x = nx;
         c.y = ny;
         h.angle = a;
@@ -219,8 +242,8 @@ function separate(living: Contestant[]): void {
       const aY = a.y - uy * half;
       const bX = b.x + ux * half;
       const bY = b.y + uy * half;
-      const aOk = isWalkable(aX, aY);
-      const bOk = isWalkable(bX, bY);
+      const aOk = terrainAllows(aX, aY);
+      const bOk = terrainAllows(bX, bY);
       if (aOk && bOk) {
         a.x = aX;
         a.y = aY;
@@ -230,14 +253,14 @@ function separate(living: Contestant[]): void {
         // b is boxed in against the coast: push a the whole way instead.
         const ax = a.x - ux * overlap;
         const ay = a.y - uy * overlap;
-        if (isWalkable(ax, ay)) {
+        if (terrainAllows(ax, ay)) {
           a.x = ax;
           a.y = ay;
         }
       } else if (bOk) {
         const bx = b.x + ux * overlap;
         const by = b.y + uy * overlap;
-        if (isWalkable(bx, by)) {
+        if (terrainAllows(bx, by)) {
           b.x = bx;
           b.y = by;
         }

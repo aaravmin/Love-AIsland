@@ -1,4 +1,5 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
 // A simple append-only contacts database: one JSON line ({ name, phone, t })
@@ -11,6 +12,10 @@ import { dirname } from "node:path";
 const FILE = process.env.CONTACTS_FILE ?? "contacts.jsonl";
 const seen = new Set<string>();
 let loaded = false;
+// Keep writes ordered without blocking Socket.IO's event loop. Sign-in acks no
+// longer wait on disk I/O, so a burst of people joining cannot serialize every
+// client behind appendFileSync.
+let writeQueue: Promise<void> = Promise.resolve();
 
 function normalize(phone: string): string {
   return phone.replace(/\D/g, "");
@@ -40,13 +45,16 @@ export function recordContact(name: string, phone: string): void {
   const key = normalize(phone);
   if (!key || seen.has(key)) return;
   seen.add(key);
-  try {
-    const dir = dirname(FILE);
-    if (dir && dir !== "." && !existsSync(dir)) mkdirSync(dir, { recursive: true });
-    appendFileSync(FILE, JSON.stringify({ name, phone, t: Date.now() }) + "\n");
-  } catch {
-    // best-effort: a write failure must never break signup
-  }
+  const line = JSON.stringify({ name, phone, t: Date.now() }) + "\n";
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const dir = dirname(FILE);
+      if (dir && dir !== ".") await mkdir(dir, { recursive: true });
+      await appendFile(FILE, line);
+    } catch {
+      // Best-effort: a write failure must never break signup or the queue.
+    }
+  });
 }
 
 export function readContacts(): string {

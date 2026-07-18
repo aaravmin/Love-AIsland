@@ -73,6 +73,16 @@ function resolveTargetId(ctx: AgentContextView, name: unknown): string | null {
   return ctx.nearby.find((n) => n.name.toLowerCase() === lower)?.id ?? null;
 }
 
+function resolveVoteTargetId(ctx: AgentContextView, name: unknown): string | null {
+  if (typeof name !== "string" || name.trim().length === 0) return null;
+  const lower = name.trim().toLowerCase();
+  return (
+    ctx.nearby.find((n) => n.name.toLowerCase() === lower)?.id ??
+    ctx.relationships?.find((r) => r.name.toLowerCase() === lower)?.id ??
+    null
+  );
+}
+
 export function createOllamaBackend(opts: OllamaOptions): ModelBackend {
   const { host, timeoutMs } = opts;
   const configuredModel = opts.model?.trim() || undefined;
@@ -174,6 +184,10 @@ export function createOllamaBackend(opts: OllamaOptions): ModelBackend {
   return {
     name: "local",
     billable: false,
+    // Ollama may be configured for more parallelism externally, but one is the
+    // safe portable default. Overflow is handled immediately by the resilient
+    // rule backend instead of sitting in Ollama's queue for up to 20 seconds.
+    maxConcurrency: 1,
 
     async healthy() {
       const ctl = new AbortController();
@@ -198,6 +212,7 @@ export function createOllamaBackend(opts: OllamaOptions): ModelBackend {
       const value: AgentDecision = {
         action: parsed.action as AgentDecision["action"],
         target: resolveTargetId(ctx, parsed.target),
+        voteTarget: resolveVoteTargetId(ctx, parsed.voteTarget),
         reasoning:
           typeof parsed.reasoning === "string" ? clampLine(parsed.reasoning, REASONING_LIMIT) : "",
       };

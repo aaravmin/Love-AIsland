@@ -359,9 +359,12 @@ export function createCameraController(
     prevH = scene.scale.height;
   };
   scene.scale.on(Phaser.Scale.Events.RESIZE, onResize);
-  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
-    scene.scale.off(Phaser.Scale.Events.RESIZE, onResize),
-  );
+  const releaseResizeListener = () => scene.scale?.off(Phaser.Scale.Events.RESIZE, onResize);
+  // Whole-game teardown (React Strict Mode and HMR) emits DESTROY directly;
+  // scene.stop/restart emits SHUTDOWN. Cover both lifecycle paths so an old
+  // controller cannot retain a Phaser scale manager after its scene is gone.
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, releaseResizeListener);
+  scene.events.once(Phaser.Scenes.Events.DESTROY, releaseResizeListener);
 
   function follow(
     getTarget: () => CameraFollowTarget | null,

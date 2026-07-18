@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { getClientId } from "@/lib/clientId";
 import { useGameStore } from "@/lib/gameStore";
 import { adoptServerFlags } from "@/lib/islandFlags";
+import { getRoom, setRoom } from "@/lib/onboarding";
 import { outcomePresentation } from "@/lib/outcomes";
 import { clearAll, pushSample, seedPosition } from "@/game/interpolation";
 import { emitFight } from "@/game/combatEvents";
@@ -96,17 +97,25 @@ export function getSocket(): ArenaSocket {
 
 // The room this client is currently in; on reconnect we rejoin it (a fresh
 // socket defaults to MAIN server-side) so a friend-room viewer stays put.
-let joinedRoomCode = "MAIN";
+function normalizeRoomCode(code: string | null | undefined): string {
+  return code?.trim().toUpperCase() || "MAIN";
+}
+
+// Module memory is lost on a hard reload, while onboarding deliberately keeps
+// the chosen room in localStorage. Restore that capability code before the
+// socket's first hello so a refresh never flashes or hydrates the MAIN room.
+let joinedRoomCode = normalizeRoomCode(getRoom());
 
 // Apply a snapshot (from hello / room:join / room:create) into the store and
 // reseed the interpolation buffer.
 function applySnapshot(snapshot: Snapshot, spectator: PrivateSpectator | null): void {
-  const store = useGameStore.getState();
-  store.hydrate(snapshot, spectator);
   // Adopt the server's resolved behavior flags before anything renders from
   // this snapshot, so the scene never draws one frame under the wrong flags.
   adoptServerFlags(snapshot.flags);
+  const store = useGameStore.getState();
+  store.hydrate(snapshot, spectator);
   joinedRoomCode = snapshot.room.code;
+  setRoom(snapshot.room.code);
   recentFeedLines.clear(); // a fresh room/run means a fresh cast; stale throttle state would mean nothing
   clearAll();
   for (const c of snapshot.contestants) seedPosition(c.id, c.x, c.y);
@@ -123,6 +132,7 @@ function requestSnapshot(s: ArenaSocket): void {
       if (ack.ok) applySnapshot(ack.snapshot, ack.spectator);
       else {
         joinedRoomCode = "MAIN";
+        setRoom("MAIN");
         s.emit("hello", { clientId }, (a) => applySnapshot(a.snapshot, a.spectator));
       }
     });
@@ -342,11 +352,15 @@ function emitWithAck<A>(
   });
 }
 
-export function joinSpectator(name: string, phone: string): Promise<SpectatorJoinAck> {
+export function joinSpectator(
+  name: string,
+  phone: string,
+  notify?: boolean,
+): Promise<SpectatorJoinAck> {
   return emitWithAck<SpectatorJoinAck>((s, done) =>
     s
       .timeout(ACK_TIMEOUT_MS)
-      .emit("spectator:join", { clientId: getClientId(), name, phone }, (err, ack) => {
+      .emit("spectator:join", { clientId: getClientId(), name, phone, notify }, (err, ack) => {
         if (!err && ack.ok) useGameStore.getState().setSpectator(ack.spectator);
         done(err, ack);
       })
@@ -393,13 +407,31 @@ export function createRoom(
   });
 }
 
-export function joinRoom(code: string): Promise<{ ok: boolean; error?: string }> {
+export function joinRoom(
+  code: string,
+): Promise<{ ok: boolean; error?: string; retryable?: boolean }> {
   return new Promise((resolve) => {
+    const targetCode = normalizeRoomCode(code);
+    const previousCode = joinedRoomCode;
+    // Set the reconnect target before emitting. If Socket.IO is still opening,
+    // its connect handler and this buffered join now agree on the destination
+    // instead of racing a stale MAIN hello against the requested room.
+    joinedRoomCode = targetCode;
     getSocket()
       .timeout(ACK_TIMEOUT_MS)
-      .emit("room:join", { clientId: getClientId(), code }, (err, ack) => {
-        if (err || !ack?.ok) {
-          resolve({ ok: false, error: (!err && ack && "error" in ack && ack.error) || "Couldn't join that game." });
+      .emit("room:join", { clientId: getClientId(), code: targetCode }, (err, ack) => {
+        if (err) {
+          joinedRoomCode = useGameStore.getState().room?.code ?? previousCode;
+          resolve({
+            ok: false,
+            error: "The island server didn't respond. Try again in a moment.",
+            retryable: true,
+          });
+          return;
+        }
+        if (!ack?.ok) {
+          joinedRoomCode = useGameStore.getState().room?.code ?? previousCode;
+          resolve({ ok: false, error: ack?.error || "Couldn't join that game." });
           return;
         }
         applySnapshot(ack.snapshot, ack.spectator);
@@ -416,11 +448,15 @@ export function startRoom(): Promise<boolean> {
   });
 }
 
-export function listRooms(): Promise<RoomInfo[]> {
+export function listRooms(
+  key?: string,
+): Promise<{ rooms: RoomInfo[]; isAdmin: boolean }> {
   return new Promise((resolve) => {
     getSocket()
       .timeout(ACK_TIMEOUT_MS)
-      .emit("room:list", (err, ack) => resolve(err || !ack ? [] : ack.rooms));
+      .emit("room:list", { key }, (err, ack) =>
+        resolve(err || !ack ? { rooms: [], isAdmin: false } : ack),
+      );
   });
 }
 
