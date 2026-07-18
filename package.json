@@ -1,0 +1,21 @@
+{
+  "name": "love-aisland",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n web,server -c blue,green \"pnpm --filter @arena/web dev\" \"pnpm --filter @arena/server dev\"",
+    "dev:web": "pnpm --filter @arena/web dev",
+    "dev:server": "pnpm --filter @arena/server dev",
+    "typecheck": "tsc -b",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "concurrently": "^9",
+    "prettier": "^3",
+    "typescript": "^5.6"
+  }
+}

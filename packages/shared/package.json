@@ -1,0 +1,16 @@
+{
+  "name": "@arena/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --import tsx --test src/lmsr.test.ts src/relationships.test.ts src/swarm.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4",
+    "@types/node": "^22"
+  }
+}

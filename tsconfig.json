@@ -1,0 +1,26 @@
+{
+  "//": [
+    "Solution-style root config. `files` stays empty on purpose: this project",
+    "compiles nothing itself, it only names the four real projects so that a",
+    "single `tsc -b` at the root typechecks the whole monorepo.",
+    "",
+    "Until this list was populated, `references` was empty too, which made",
+    "`tsc -b` fail with TS18002 ('the files list in this config file is empty')",
+    "and exit non-zero. `pnpm typecheck` had therefore never typechecked",
+    "anything, and apps/web in particular was covered by no command at all.",
+    "",
+    "The referenced projects are deliberately NOT `composite`. Every one of them",
+    "sets noEmit, so there are no declaration outputs to wire together and no",
+    "build ordering to respect; TypeScript resolves cross-package imports",
+    "straight through the workspace source. Adding composite would buy",
+    "incremental rebuild artifacts we do not need and would force declaration",
+    "emit on packages that are consumed as source."
+  ],
+  "files": [],
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "packages/swarm" },
+    { "path": "apps/server" },
+    { "path": "apps/web" }
+  ]
+}

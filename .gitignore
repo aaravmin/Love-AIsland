@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+.env
+.env.*
+.DS_Store
+*.tsbuildinfo
+.vercel
+.env*
+!.env.example
+
+*.code-workspace
