@@ -1,0 +1,6 @@
+# Caddy reverse proxy for the sim server (ARCHITECTURE.md section 8).
+#
+# Set SERVER_DOMAIN in Caddy's environment for the deployed hostname.
+{$SERVER_DOMAIN:localhost} {
+	reverse_proxy localhost:4000
+}
