@@ -1,145 +1,213 @@
 # Love AIsland
 
-Live reality-TV survival sim with LLM agent contestants and an LMSR prediction market.
+An AI-driven social-strategy game where autonomous contestants make friends, form voting blocs, betray allies, and fight to become the last islander standing—while human spectators trade on the outcome in a live prediction market.
 
-## Quick Start
+Love AIsland combines a realtime multiplayer game, a pixel-art simulation, an agent swarm, and LMSR prediction markets. Contestants act from their own personalities, memories, relationships, and private plans instead of following a fixed script.
 
-Install dependencies:
+## Demo
+
+▶ **[Watch the full 1:53 gameplay walkthrough](./demo/love-aisland-12-agent-walkthrough.mp4)**
+
+The video follows a complete 12-agent game: creation, betting, conversations, relationship changes, an alliance, compulsory voting events, vote-off departures, sudden-death fights, and the final winner.
+
+## What the project does
+
+Each contestant is an independent agent with a personality, memories, relationships, private plans, and a changing read of the game. Agents move around a shared island and decide whom to approach, what to say, which information to share, who feels threatening, and which relationships are worth protecting.
+
+The simulation turns those decisions into a live social game:
+
+- **Emergent conversations:** agents joke, argue, reassure one another, campaign, and quietly test voting plans.
+- **Persistent relationships:** trust, affinity, and threat change after conversations, witnessed events, betrayals, and joint decisions.
+- **Alliances and strategy:** agents form blocs, count support, conceal targets, deflect danger, and change plans when the numbers are weak.
+- **Formal voting:** living contestants cast ballots during voting events, with results and tallies surfaced in the island feed.
+- **Realtime spectator play:** people join by room code or QR, receive tokens, inspect contestants, and follow the action as it unfolds.
+- **Prediction markets:** every contestant has a live Yes/No LMSR market whose price reacts to bets and observable game events.
+- **A complete ending:** eliminations, combat, and market settlement continue until one contestant wins.
+- **Resilient AI:** cloud, local, hosted, and deterministic rule backends share one interface, so a failed model never has to stop the game.
+
+## How a game unfolds
+
+1. **Create or join an island.** Rooms have their own cast, configuration, spectators, markets, and lifecycle.
+2. **Build the cast.** Seed autonomous contestants for a simulation or invite players through a room code or QR link.
+3. **Watch the social game develop.** Contestants move, talk, remember outcomes, overhear information, and build alliances.
+4. **Survive events and votes.** Agents campaign before ceremonies and commit to real ballots when voting begins.
+5. **Play the market.** Spectators buy Yes or No shares, track their portfolios, and follow the contestants they backed.
+6. **Reach the finale.** The server resolves every elimination in order, settles the winner's market, and publishes the final leaderboard.
+
+## Tech stack
+
+| Layer              | Technology                                                               | Role                                                                                         |
+| ------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Web application    | Next.js 16, React 19, TypeScript                                         | App Router UI, onboarding, room creation, markets, admin tools, and results                  |
+| Island renderer    | Phaser 3                                                                 | Pixel-art world, movement, conversations, camera control, fights, and elimination animations |
+| Client state       | Zustand                                                                  | Live room state, conversations, positions, feed history, and selected contestants            |
+| Realtime transport | Socket.IO                                                                | Typed snapshots, tick diffs, speech, events, votes, market updates, and room commands        |
+| Styling and UI     | Tailwind CSS 4, shadcn, Base UI, Lucide                                  | Responsive controls, panels, overlays, and visual system                                     |
+| Simulation server  | Node.js 22, TypeScript                                                   | Authoritative multi-room lifecycle, movement, social logic, events, markets, and combat      |
+| Agent runtime      | Custom `@arena/swarm` package                                            | Scheduling, prompting, decisions, call budgets, circuit breaking, and backend fallback       |
+| Model backends     | Anthropic SDK, Ollama, OpenAI-compatible HTTP, deterministic rules       | Cloud, local, hosted, or offline contestant intelligence                                     |
+| Prediction markets | Custom LMSR implementation                                               | Yes/No pricing, shares, event-driven drift, settlement, and spectator portfolios             |
+| Shared contracts   | `@arena/shared`                                                          | Socket protocol, domain types, tunables, relationships, feed events, and market math         |
+| Tooling            | pnpm workspaces, TypeScript project references, ESLint, Node test runner | Monorepo development, static checks, and automated tests                                     |
+
+The game is intentionally lightweight operationally: active room state lives in the authoritative server process, and collected join contacts use an operator-protected JSONL file rather than requiring a database.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Browser["Next.js UI<br/>Phaser world + Zustand"]
+    Server["Socket.IO simulation server<br/>rooms + ticks + votes + markets"]
+    Swarm["Agent runtime<br/>scheduler + prompts + fallback"]
+    Models["Rules / Ollama / Anthropic<br/>OpenAI-compatible hosted model"]
+    Shared["Shared TypeScript contracts<br/>protocol + types + LMSR + tunables"]
+
+    Browser <-->|typed realtime events| Server
+    Server <--> Swarm
+    Swarm <--> Models
+    Shared -.-> Browser
+    Shared -.-> Server
+    Shared -.-> Swarm
+```
+
+The server owns the truth. Browsers send commands and receive an initial snapshot followed by small realtime diffs. The swarm produces contestant intents and dialogue, while the server validates and resolves movement, conversations, alliances, ballots, eliminations, market settlement, and the winner.
+
+## Repository structure
+
+```text
+apps/
+  web/       Next.js application and Phaser game client
+  server/    Socket.IO simulation server and authoritative game state
+packages/
+  shared/    Domain types, protocol, tunables, relationships, feed, and LMSR math
+  swarm/     Agent scheduler, prompts, model backends, and deterministic fallback
+docs/        Architecture, data-model, task-graph, and operator documentation
+deploy/      Deployment configuration and runbook
+demo/        Gameplay walkthrough
+```
+
+## Quick start
+
+### Requirements
+
+- Node.js 22 or newer
+- pnpm 11
+
+### Install and run
 
 ```bash
 pnpm install
-```
-
-Run development servers:
-
-```bash
 pnpm dev
 ```
 
-This starts both the web app and backend server concurrently.
+This starts:
 
-## Project Structure
+- Web app: [http://localhost:3000](http://localhost:3000)
+- Realtime server: `http://localhost:4000`
+- Health check: [http://localhost:4000/healthz](http://localhost:4000/healthz)
 
-See [MVP_BUILD_PLAN.md](./MVP_BUILD_PLAN.md) for the project roadmap and architecture overview.
+No model key is required. The deterministic rule backend can run a complete game offline.
 
-Documentation is available in the `docs/` directory:
+## Development commands
 
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- [docs/DATA_MODELS.md](./docs/DATA_MODELS.md)
-- [docs/TASK_GRAPH.md](./docs/TASK_GRAPH.md)
+| Command                          | Purpose                               |
+| -------------------------------- | ------------------------------------- |
+| `pnpm dev`                       | Start the web app and server together |
+| `pnpm dev:web`                   | Start only the Next.js app            |
+| `pnpm dev:server`                | Start only the simulation server      |
+| `pnpm test`                      | Run every workspace test suite        |
+| `pnpm typecheck`                 | Type-check the full monorepo          |
+| `pnpm --filter @arena/web lint`  | Lint the web application              |
+| `pnpm --filter @arena/web build` | Build the production web bundle       |
 
-## Development Commands
+## Model backends
 
-- `pnpm dev` - Start web and server in parallel
-- `pnpm dev:web` - Start web app only
-- `pnpm dev:server` - Start backend server only
-- `pnpm typecheck` - Run TypeScript type checking
-- `pnpm test` - Run all tests
+Every model call passes through one backend seam configured with `SWARM_*`. A rule engine sits underneath the selected backend as an automatic fallback, so a failed or rate-limited model never stalls the simulation.
 
-## Server Environment
-
-The sim server (`apps/server`) reads these variables, all optional in dev:
-
-- `PORT` - listen port, default 4000
-- `CORS_ORIGINS` - comma-separated allowlist; dev also accepts private-LAN origins on port 3000 so phones can join by QR
-- `OPERATOR_KEY` - admin console key, default `dev-operator` in dev, required in production
-- `DEV_SEED` - seed N house contestants at boot and after reset, for local testing (e.g. `DEV_SEED=12 pnpm dev:server`)
-- `ISLAND_MAP_PATH` - override the walkable-mask JSON path for deployed layouts
-- `CONTACTS_FILE` - where phone numbers collected at join are appended, default `contacts.jsonl`
-- `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM` - SMS credentials; with any of them missing every send logs `[sms:noop]` instead, which is the intended local development path
-
-The web app reads:
-
-- `NEXT_PUBLIC_SOCKET_URL` - backend URL; by default it uses the current page hostname on port 4000
-- `NEXT_PUBLIC_APP_URL` - optional public/LAN web origin used in room QR links; defaults to the current page origin
-
-[`.env.example`](./.env.example) at the repo root documents every variable the project reads, with defaults.
-
-## Behavior Flags
-
-Agent behavior lives behind feature flags read once at startup from `packages/shared/src/tunables.ts`.
-`ISLAND_BEHAVIOR_ALL` is the master switch and **defaults to on**, so a stock `pnpm dev` runs the full game.
-Every individual flag overrides the master switch in both directions.
-
-| Variable | Behavior |
-| --- | --- |
-| `ISLAND_CONVERSATION_VARIETY` | Ordinary topics such as backstory and jokes, not only game talk |
-| `ISLAND_STRIP_DASHES` | Islander speech contains no dashes of any kind |
-| `ISLAND_VOTE_REASONING` | Votes weigh threat, likability and whether the votes exist |
-| `ISLAND_VOTE_DEFLECTION` | A target that senses danger steers votes toward someone else |
-| `ISLAND_EARLY_AGGRESSION` | Raised early-game conflict baseline, ramped in over the warmup window |
-| `ISLAND_SELF_ODDS` | A coarse private sense of standing, never an exact percentage |
-| `ISLAND_MULTI_ALLIANCES` | Alliances of three or more, tracked as groups rather than pairs |
-| `ISLAND_ALLIANCE_DEFECTION` | Cohesion decay and members walking out of a fracturing bloc |
-| `ISLAND_SPONTANEOUS_OUSTER` | Agent-driven elimination pushes between formal voting events |
-| `ISLAND_VOTE_RESOLUTION` | Plurality plus the one tie rule: lower health, then the run seed |
-| `ISLAND_WORLD_AWARENESS` | The event feed and world state reach the agent |
-| `ISLAND_SPATIAL_AWARENESS` | Compute whether an agent is in a crowded or secluded spot |
-| `ISLAND_SPATIAL_BEHAVIOR` | Let that crowded/secluded reading actually change what agents do |
-| `ISLAND_OVERHEARING` | Capture fragments of nearby conversations an agent is not in |
-| `ISLAND_GOSSIP` | Let those fragments reach speech and decisions, so they spread |
-| `ISLAND_MARKET_EVENT_DRIFT` | Odds move on observable events, not only on bets |
-| `ISLAND_RELATIONSHIP_MEMORY` | Per-pair trust, threat and affinity that fade but are never erased |
-| `ISLAND_OUTCOME_ICONS` | Tension and amicable icons on the island |
-| `ISLAND_CALM_CONVERSATIONS` | Islanders move much less while talking |
-| `ISLAND_FOLLOW_CAMERA` | The camera can follow one islander or a whole portfolio |
-| `ISLAND_RICH_NOTIFICATIONS` | Event-aware SMS about your islander and your positions |
-| `ISLAND_CONVERSATION_HISTORY` | The client retains ended transcripts so you can swipe back |
-| `ISLAND_CALL_BUDGET` | Cap model calls per tick, degrading to the rule engine rather than stalling |
-
-Several flags are no-ops on their own.
-`ISLAND_GOSSIP` needs `ISLAND_OVERHEARING`, `ISLAND_SPATIAL_BEHAVIOR` needs `ISLAND_SPATIAL_AWARENESS`, `ISLAND_VOTE_DEFLECTION` and `ISLAND_EARLY_AGGRESSION` need `ISLAND_WORLD_AWARENESS`, and `ISLAND_MULTI_ALLIANCES`, `ISLAND_SELF_ODDS` and `ISLAND_OUTCOME_ICONS` all degrade without `ISLAND_RELATIONSHIP_MEMORY`.
-The full list, along with every numeric tunable, is in `.env.example`.
-
-### Running the pre-spec build
-
-The spec's cross-cutting rule is that all flags off means the game behaves exactly as it did before the behavior work.
-That is preserved as a reachable configuration rather than as the default:
+### Deterministic rule engine
 
 ```bash
-# The exact pre-spec build
-ISLAND_BEHAVIOR_ALL=0 DEV_SEED=14 pnpm dev:server
+SWARM_BACKEND=rules DEV_SEED=12 pnpm dev:server
+```
 
-# Pre-spec plus one feature, for an A/B on that feature alone
-ISLAND_BEHAVIOR_ALL=0 ISLAND_STRIP_DASHES=1 pnpm dev:server
+### Local model with Ollama
 
-# Everything except one feature
+```bash
+ollama pull llama3.2
+SWARM_BACKEND=local pnpm dev:server
+
+# Pin a different installed model
+SWARM_BACKEND=local SWARM_LOCAL_MODEL=gemma3:4b pnpm dev:server
+```
+
+### Anthropic
+
+```bash
+SWARM_BACKEND=anthropic \
+ANTHROPIC_API_KEY=sk-ant-... \
+pnpm dev:server
+```
+
+### OpenAI-compatible hosted model
+
+```bash
+SWARM_BACKEND=hosted \
+SWARM_HOSTED_BASE_URL=https://api.groq.com/openai/v1 \
+SWARM_HOSTED_MODEL=llama-3.3-70b-versatile \
+SWARM_HOSTED_API_KEY=... \
+pnpm dev:server
+```
+
+If the primary backend repeatedly fails, a circuit breaker opens and subsequent turns immediately degrade to the rule engine. Check the server boot log to confirm which backend is active.
+
+## Configuration
+
+[`.env.example`](./.env.example) documents every supported variable and its default. Common settings include:
+
+| Variable                 | Purpose                                                               |
+| ------------------------ | --------------------------------------------------------------------- |
+| `PORT`                   | Server port; defaults to `4000`                                       |
+| `CORS_ORIGINS`           | Comma-separated production origin allowlist                           |
+| `NEXT_PUBLIC_SOCKET_URL` | Browser-visible Socket.IO server URL                                  |
+| `NEXT_PUBLIC_APP_URL`    | Public or LAN web origin used in QR links                             |
+| `OPERATOR_KEY`           | Protects operator commands and contact export; required in production |
+| `DEV_SEED`               | Seeds the main room with house contestants for development            |
+| `ISLAND_MAP_PATH`        | Overrides the deployed walkable-map JSON                              |
+| `CONTACTS_FILE`          | JSONL path for collected join contacts                                |
+
+### Behavior flags
+
+`ISLAND_BEHAVIOR_ALL` is the master switch and defaults to on. Individual flags can override it in either direction.
+
+| Area                        | Representative flags                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| Conversation and voice      | `ISLAND_CONVERSATION_VARIETY`, `ISLAND_STRIP_DASHES`, `ISLAND_CALM_CONVERSATIONS`           |
+| Voting strategy             | `ISLAND_VOTE_REASONING`, `ISLAND_VOTE_DEFLECTION`, `ISLAND_VOTE_RESOLUTION`                 |
+| Relationships and alliances | `ISLAND_RELATIONSHIP_MEMORY`, `ISLAND_MULTI_ALLIANCES`, `ISLAND_ALLIANCE_DEFECTION`         |
+| Awareness and gossip        | `ISLAND_WORLD_AWARENESS`, `ISLAND_SPATIAL_AWARENESS`, `ISLAND_OVERHEARING`, `ISLAND_GOSSIP` |
+| Spectator experience        | `ISLAND_MARKET_EVENT_DRIFT`, `ISLAND_FOLLOW_CAMERA`, `ISLAND_CONVERSATION_HISTORY`          |
+| Reliability                 | `ISLAND_CALL_BUDGET`                                                                        |
+
+Some flags depend on others. For example, gossip needs overhearing, spatial behavior needs spatial awareness, and group alliances work best with relationship memory. The exact dependency notes and all numeric tunables live in [`.env.example`](./.env.example).
+
+To reproduce the pre-behavior build or isolate one feature:
+
+```bash
+# All behavior features off
+ISLAND_BEHAVIOR_ALL=0 DEV_SEED=12 pnpm dev:server
+
+# Pre-behavior baseline plus one feature
+ISLAND_BEHAVIOR_ALL=0 ISLAND_VOTE_REASONING=1 pnpm dev:server
+
+# Everything on except one feature
 ISLAND_OVERHEARING=0 pnpm dev:server
 ```
 
-## Model Backends
+## Documentation
 
-Every model call goes through one seam, configured with `SWARM_*` (see `packages/swarm/src/config.ts`).
-Whatever the active backend, the rule engine is wired underneath it as an automatic fallback, so the sim keeps running with no model reachable at all.
-
-```bash
-# Rule engine only. Deterministic, no model, no network.
-# Use this for dialogue-quality iteration and for offline play.
-SWARM_BACKEND=rules DEV_SEED=14 pnpm dev:server
-
-# Local model via Ollama. Free per call, so the swarm can make as many calls
-# as the hardware allows. The targeted model must actually be installed.
-ollama pull llama3.2
-SWARM_BACKEND=local pnpm dev:server
-SWARM_BACKEND=local SWARM_LOCAL_MODEL=gemma3:4b pnpm dev:server   # pin a different one
-
-# Anthropic. Note the key alone does nothing: the backend factory only reads
-# ANTHROPIC_API_KEY when the active backend is the Anthropic one.
-SWARM_BACKEND=anthropic ANTHROPIC_API_KEY=sk-ant-... pnpm dev:server
-
-# Free-tier hosted, OpenAI-compatible. Good quality on a small cast, but rate
-# limited, so it depends on the per-tick call budget. Requires the hosted
-# backend; until it lands, `hosted` is an alias for the Anthropic path.
-SWARM_BACKEND=hosted SWARM_HOSTED_BASE_URL=https://api.groq.com/openai/v1 \
-  SWARM_HOSTED_MODEL=llama-3.3-70b-versatile SWARM_HOSTED_API_KEY=... pnpm dev:server
-```
-
-If the configured model is unreachable, the circuit breaker opens after a few consecutive failures and every subsequent line comes from the rule engine.
-That is a silent degradation in the UI, so check the boot log before concluding the writing is bad.
-
-## Workspace Structure
-
-This is a pnpm monorepo with the following directories:
-
-- `apps/` - Web and server applications
-- `packages/` - Shared packages and libraries
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Data models](./docs/DATA_MODELS.md)
+- [Operator runbook](./docs/OPERATOR_RUNBOOK.md)
+- [Task graph](./docs/TASK_GRAPH.md)
+- [MVP build plan](./MVP_BUILD_PLAN.md)
+- [Deployment guide](./deploy/README.md)
